@@ -1,0 +1,12 @@
+{
+  "appId": "com.resk.app",
+  "appName": "РЕСК",
+  "webDir": "frontend",
+  "server": {
+    "url": "http://192.168.0.111:3000",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "space",
+  "version": "1.0.0",
+  "description": "Space — социальная сеть + видеоплатформа + мессенджер",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js",
+    "seed": "node backend/seed.js",
+    "backup": "node backend/backup-cli.js",
+    "restore": "node backend/restore.js",
+    "smoke": "node backend/smoke-test.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "bcryptjs": "^2.4.3",
+    "express": "^4.19.2",
+    "multer": "^2.2.0",
+    "selfsigned": "^5.5.0",
+    "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
+    "socket.io-client": "^4.7.5"
+  }
+}

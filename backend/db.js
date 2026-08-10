@@ -1,0 +1,226 @@
+const path = require('path');
+const fs = require('fs');
+const { DatabaseSync } = require('node:sqlite');
+const { randomUid } = require('./security');
+
+const DATA_DIR = path.join(__dirname, '..');
+const DB_PATH = process.env.SPACE_DB_PATH
+  ? path.resolve(process.env.SPACE_DB_PATH)
+  : path.join(DATA_DIR, 'space.db');
+
+const UPLOAD_DIR = process.env.SPACE_UPLOAD_DIR
+  ? path.resolve(process.env.SPACE_UPLOAD_DIR)
+  : path.join(DATA_DIR, 'uploads');
+
+const AVATAR_DIR = path.join(UPLOAD_DIR, 'avatars');
+const POST_DIR = path.join(UPLOAD_DIR, 'posts');
+const VIDEO_DIR = path.join(UPLOAD_DIR, 'videos');
+const THUMB_DIR = path.join(UPLOAD_DIR, 'thumbs');
+
+for (const dir of [UPLOAD_DIR, AVATAR_DIR, POST_DIR, VIDEO_DIR, THUMB_DIR]) {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+const db = new DatabaseSync(DB_PATH);
+db.exec('PRAGMA journal_mode = WAL;');
+db.exec('PRAGMA foreign_keys = ON;');
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  uid TEXT UNIQUE,
+  username TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  password_changed_at TEXT,
+  name TEXT NOT NULL,
+  bio TEXT DEFAULT '',
+  status TEXT DEFAULT '',
+  avatar TEXT DEFAULT '',
+  role TEXT NOT NULL DEFAULT 'user',
+  incognito INTEGER NOT NULL DEFAULT 0,
+  e2ee_pub TEXT DEFAULT '',
+  e2ee_ver INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  token TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  device_id TEXT,
+  ip_hash TEXT,
+  ua_hash TEXT,
+  expires_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+  token TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  device_id TEXT,
+  ip_hash TEXT,
+  ua_hash TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  expires_at TEXT NOT NULL,
+  replaced_by TEXT
+);
+
+CREATE TABLE IF NOT EXISTS devices (
+  id TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  trusted INTEGER NOT NULL DEFAULT 0,
+  trusted_until TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS totp (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  secret TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS follows (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  following_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, following_id)
+);
+
+CREATE TABLE IF NOT EXISTS posts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  uid TEXT UNIQUE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  text TEXT DEFAULT '',
+  media TEXT DEFAULT '',
+  media_type TEXT DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS post_likes (
+  post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (post_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS videos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  uid TEXT UNIQUE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  file TEXT NOT NULL,
+  thumb TEXT DEFAULT '',
+  is_clip INTEGER NOT NULL DEFAULT 0,
+  views INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS video_likes (
+  video_id INTEGER NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (video_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS comments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  uid TEXT UNIQUE,
+  post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
+  video_id INTEGER REFERENCES videos(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  text TEXT NOT NULL,
+  parent_id INTEGER REFERENCES comments(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS chats (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  uid TEXT UNIQUE,
+  user_a INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_b INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (user_a, user_b)
+);
+
+CREATE TABLE IF NOT EXISTS messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  chat_id INTEGER NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  text TEXT NOT NULL,
+  e2ee INTEGER NOT NULL DEFAULT 0,
+  read INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER,
+  action TEXT NOT NULL,
+  level TEXT NOT NULL DEFAULT 'info',
+  ip TEXT DEFAULT '',
+  ua_hash TEXT DEFAULT '',
+  payload TEXT DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_posts_user ON posts(user_id);
+CREATE INDEX IF NOT EXISTS idx_videos_user ON videos(user_id);
+CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id);
+CREATE INDEX IF NOT EXISTS idx_comments_video ON comments(video_id);
+CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages(chat_id);
+CREATE INDEX IF NOT EXISTS idx_logs_user ON logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_logs_action ON logs(action);
+CREATE INDEX IF NOT EXISTS idx_refresh_user ON refresh_tokens(user_id);
+`);
+
+/* =========================================================
+   Миграция: добавляет недостающие колонки (idempotent)
+   ========================================================= */
+function hasColumn(table, col) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+  return cols.includes(col);
+}
+
+function addColumn(table, col, ddl) {
+  if (!hasColumn(table, col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${ddl}`);
+}
+
+function ensureUid(table) {
+  if (!hasColumn(table, 'uid')) return;
+  const rows = db.prepare(`SELECT id FROM ${table} WHERE uid IS NULL`).all();
+  const upd = db.prepare(`UPDATE ${table} SET uid = ? WHERE id = ?`);
+  for (const r of rows) upd.run(randomUid(), r.id);
+}
+
+function migrate() {
+  addColumn('users', 'uid', 'TEXT');
+  addColumn('users', 'password_changed_at', 'TEXT');
+  addColumn('users', 'incognito', 'INTEGER NOT NULL DEFAULT 0');
+  addColumn('users', 'e2ee_pub', 'TEXT DEFAULT \'\'');
+  addColumn('users', 'e2ee_ver', 'INTEGER NOT NULL DEFAULT 0');
+  addColumn('posts', 'uid', 'TEXT');
+  addColumn('videos', 'uid', 'TEXT');
+  addColumn('comments', 'uid', 'TEXT');
+  addColumn('chats', 'uid', 'TEXT');
+  addColumn('messages', 'e2ee', 'INTEGER NOT NULL DEFAULT 0');
+  addColumn('sessions', 'device_id', 'TEXT');
+  addColumn('sessions', 'ip_hash', 'TEXT');
+  addColumn('sessions', 'ua_hash', 'TEXT');
+  addColumn('sessions', 'expires_at', 'TEXT');
+
+  for (const t of ['users', 'posts', 'videos', 'comments', 'chats']) ensureUid(t);
+}
+
+migrate();
+
+module.exports = {
+  db,
+  DB_PATH,
+  UPLOAD_DIR,
+  AVATAR_DIR,
+  POST_DIR,
+  VIDEO_DIR,
+  THUMB_DIR
+};

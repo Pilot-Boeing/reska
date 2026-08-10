@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0a12">
+  <title>РЕСК — сообщество</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a855f7'/%3E%3Cstop offset='1' stop-color='%2322d3ee'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='50' cy='50' r='46' fill='url(%23g)'/%3E%3Ctext x='50' y='64' font-size='46' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ============ ЭКРАН АВТОРИЗАЦИИ ============ -->
+  <div id="auth-screen" class="hidden">
+    <div class="auth-bg"></div>
+    <div class="auth-card glass">
+      <div class="auth-logo">Р<span class="glow">Е</span>СК</div>
+      <p class="auth-sub">Сообщество. Видео. Клипы. Чат.</p>
+      <div class="tabs">
+        <button class="tab active" data-tab="login">Вход</button>
+        <button class="tab" data-tab="register">Регистрация</button>
+      </div>
+      <form id="auth-form">
+        <div class="field">
+          <label>Логин</label>
+          <input name="username" autocomplete="username" required placeholder="Например: alex">
+        </div>
+        <div class="field hidden" data-role="register">
+          <label>Имя</label>
+          <input name="name" autocomplete="name" placeholder="Как вас зовут">
+        </div>
+        <div class="field">
+          <label>Пароль</label>
+          <input type="password" name="password" autocomplete="current-password" required placeholder="••••••••">
+        </div>
+        <div class="field hidden" id="captcha-field">
+          <label>Проверка: <b id="captcha-question"></b> = ?</label>
+          <input name="captcha_answer" inputmode="numeric" autocomplete="off" placeholder="Ответ">
+        </div>
+        <div class="field hidden" id="totp-field">
+          <label>Код из приложения (2FA)</label>
+          <input name="totp_code" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" maxlength="6">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="auth-submit">Войти</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ ПРИЛОЖЕНИЕ ============ -->
+  <div id="app" class="hidden">
+
+    <!-- ===== ЛЕВЫЙ САЙДБАР ===== -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-top">
+        <a class="sidebar-logo" href="#/feed">РЕСК</a>
+        <nav class="sidebar-nav">
+          <a href="#/feed" data-nav="feed" class="slink">
+            <span class="slink-icon">🏠</span><span class="slink-text">Лента</span>
+          </a>
+          <a href="#/videos" data-nav="videos" class="slink">
+            <span class="slink-icon">▶</span><span class="slink-text">Видео</span>
+          </a>
+          <a href="#/clips" data-nav="clips" class="slink">
+            <span class="slink-icon">🎬</span><span class="slink-text">Клипы</span>
+          </a>
+          <a href="#/messages" data-nav="messages" class="slink">
+            <span class="slink-icon">💬</span><span class="slink-text">Сообщения</span>
+            <span id="msg-badge" class="badge hidden">0</span>
+          </a>
+          <a href="#/search" data-nav="search" class="slink">
+            <span class="slink-icon">🔍</span><span class="slink-text">Поиск</span>
+          </a>
+        </nav>
+      </div>
+
+      <div class="sidebar-mid">
+        <nav class="sidebar-nav">
+          <span class="sidebar-section">Библиотека</span>
+          <a href="#/notes" data-nav="notes" class="slink">
+            <span class="slink-icon">📝</span><span class="slink-text">Конспекты</span>
+          </a>
+          <a href="#/favorites" data-nav="favorites" class="slink">
+            <span class="slink-icon">⭐</span><span class="slink-text">Избранное</span>
+          </a>
+          <a href="#/groups" data-nav="groups" class="slink">
+            <span class="slink-icon">👥</span><span class="slink-text">Группы</span>
+          </a>
+        </nav>
+      </div>
+
+      <div class="sidebar-bottom">
+        <button class="btn btn-primary sidebar-new-btn" id="new-post-btn">＋ Новый пост</button>
+        <div class="sidebar-user">
+          <button class="sidebar-user-btn" id="user-menu-btn">
+            <img id="nav-avatar" class="avatar" alt="">
+            <span id="nav-name" class="sidebar-user-name"></span>
+            <span class="sidebar-user-caret">▾</span>
+          </button>
+          <div id="user-menu" class="dropdown hidden">
+            <a href="#/profile/me">👤 Мой профиль</a>
+            <a href="#/edit-profile">✏ Редактировать</a>
+            <a href="#/security">🔐 Безопасность</a>
+            <a href="#/videos/new">▶ Загрузить видео</a>
+            <a href="#/clips/new">🎬 Добавить клип</a>
+            <a href="#" data-action="logout">🚪 Выйти</a>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ===== ОСНОВНАЯ ОБЛАСТЬ ===== -->
+    <div class="main">
+      <header class="topbar">
+        <button class="menu-toggle hidden" id="menu-toggle" title="Меню">☰</button>
+        <form id="search-form" class="search">
+          <span class="search-icon">🔍</span>
+          <input id="search-input" type="search" placeholder="Поиск: посты, видео, люди...">
+        </form>
+      </header>
+      <main id="view" class="view"></main>
+    </div>
+
+    <!-- ===== МОБИЛЬНАЯ НАВИГАЦИЯ (низ) ===== -->
+    <nav class="mobilenav" id="mobilenav">
+      <a href="#/feed" data-nav="feed"><span class="mn-ico">🏠</span><span class="mn-txt">Лента</span></a>
+      <a href="#/videos" data-nav="videos"><span class="mn-ico">▶</span><span class="mn-txt">Видео</span></a>
+      <a href="#/clips" data-nav="clips"><span class="mn-ico">🎬</span><span class="mn-txt">Клипы</span></a>
+      <a href="#/messages" data-nav="messages"><span class="mn-ico">💬</span><span class="mn-txt">Чат</span></a>
+      <a href="#/profile/me" data-nav="profile"><span class="mn-ico">👤</span><span class="mn-txt">Профиль</span></a>
+    </nav>
+  </div>
+
+  <div id="modal-root"></div>
+  <div id="toast-root"></div>
+
+  <!-- ============ ШАБЛОН ПОСТА ============ -->
+  <template id="tpl-post">
+    <article class="post card">
+      <div class="post-head">
+        <a class="post-avatar-link" href="#/profile/"><img class="avatar" alt="аватар"></a>
+        <div class="post-meta">
+          <a class="post-author" href="#/profile/"></a>
+          <span class="post-time muted"></span>
+        </div>
+        <button class="icon-btn post-del hidden" data-action="del-post" title="Удалить">🗑</button>
+      </div>
+      <p class="post-text"></p>
+      <div class="post-media-wrap"></div>
+      <div class="post-actions">
+        <button class="pact" data-action="like">
+          <span class="pact-ico">🤍</span><span class="like-count"></span>
+        </button>
+        <button class="pact" data-action="toggle-comments">
+          <span class="pact-ico">💬</span><span class="comment-count"></span>
+        </button>
+        <button class="pact" data-action="share">
+          <span class="pact-ico">🔗</span><span>Поделиться</span>
+        </button>
+      </div>
+      <div class="comments-wrap hidden">
+        <div class="comments-list"></div>
+        <form class="comment-form">
+          <img class="avatar sm comment-self-avatar" alt="">
+          <input type="text" placeholder="Написать комментарий..." autocomplete="off">
+          <button type="submit" class="btn btn-primary btn-sm">➤</button>
+        </form>
+      </div>
+    </article>
+  </template>
+
+  <!-- ============ ШАБЛОН ВИДЕО-КАРТОЧКИ ============ -->
+  <template id="tpl-video-card">
+    <div class="video-card card" data-role="video-card">
+      <div class="video-thumb">
+        <img alt="превью">
+        <span class="video-thumb-play">▶</span>
+        <span class="views-badge">👁 0</span>
+        <span class="clip-badge hidden">КЛИП</span>
+      </div>
+      <div class="video-info">
+        <h3 class="video-title"></h3>
+        <p class="video-author muted"></p>
+      </div>
+    </div>
+  </template>
+
+  <!-- ============ ШАБЛОН КЛИПА (реелс) ============ -->
+  <template id="tpl-clip">
+    <div class="clip" data-role="clip">
+      <div class="clip-media">
+        <video muted loop preload="metadata"></video>
+        <div class="clip-progress"><span></span></div>
+      </div>
+      <div class="clip-overlay"></div>
+      <button class="clip-play-pause"></button>
+      <button class="clip-mute">
+        <span class="muted-ico">🔇</span>
+        <span class="unmuted-ico">🔊</span>
+      </button>
+      <a class="clip-author-block" href="#">
+        <span class="clip-avatar"></span>
+        <span class="clip-author-name"></span>
+        <span class="clip-follow">Подписаться</span>
+      </a>
+      <div class="clip-side">
+        <button class="clip-act" data-action="like"><span class="clip-act-ico">❤️</span><span class="clip-like-count">0</span></button>
+        <button class="clip-act" data-action="toggle-comments"><span class="clip-act-ico">💬</span><span class="clip-comment-count">0</span></button>
+        <button class="clip-act" data-action="share"><span class="clip-act-ico">🔗</span></button>
+      </div>
+      <div class="clip-info">
+        <p class="clip-title"></p>
+        <p class="clip-sound">
+          <span class="clip-sound-ico"></span>
+          <span class="clip-sound-text"></span>
+        </p>
+      </div>
+      <div class="clip-heart"></div>
+    </div>
+  </template>
+
+  <!-- ============ КОММЕНТАРИИ-ЛИСТ (bottom sheet) ============ -->
+  <template id="tpl-comments-sheet">
+    <div class="comments-sheet" data-role="comments-sheet">
+      <div class="comments-sheet-backdrop"></div>
+      <div class="comments-sheet-panel glass">
+        <div class="comments-sheet-head">
+          <span class="comments-sheet-count">Комментарии</span>
+          <button class="comments-sheet-close"></button>
+        </div>
+        <div class="comments-sheet-list"></div>
+        <div class="comments-sheet-form">
+          <input type="text" name="comment" placeholder="Добавить комментарий..." autocomplete="off">
+          <button type="submit" class="btn btn-primary btn-sm">></button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- ============ ШАБЛОН СООБЩЕНИЯ ============ -->
+  <template id="tpl-message">
+    <div class="msg">
+      <div class="msg-bubble"></div>
+      <span class="msg-time muted"></span>
+    </div>
+  </template>
+
+  <!-- ============ ШАБЛОН КОММЕНТАРИЯ ============ -->
+  <template id="tpl-comment">
+    <div class="comment">
+      <img class="avatar sm" alt="аватар">
+      <div class="comment-body">
+        <a class="comment-author" href="#/profile/"></a>
+        <p class="comment-text"></p>
+        <button class="reply-btn">Ответить</button>
+        <form class="reply-form hidden">
+          <input type="text" placeholder="Ответить..." autocomplete="off">
+          <button class="btn btn-primary btn-sm" type="submit">➤</button>
+        </form>
+      </div>
+      <div class="comment-replies"></div>
+    </div>
+  </template>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

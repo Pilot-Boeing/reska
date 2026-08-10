@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Database & user data
+space.db
+space.db-shm
+space.db-wal
+uploads/
+backups/
+
+# Secrets / env
+.env
+certs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+
+# Android build artifacts
+android/app/build/
+android/.gradle/
+android/build/
+android/capacitor-cordova-android-plugins/build/
+android/local.properties
+android/app/src/main/assets/public/
