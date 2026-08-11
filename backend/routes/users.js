@@ -50,7 +50,9 @@ router.get('/:id', (req, res) => {
   const videos = db
     .prepare('SELECT id, uid, title, file, thumb, views, is_clip FROM videos WHERE user_id = ? ORDER BY id DESC LIMIT 10')
     .all(id);
-  res.json({ user: publicUser(user), stats, isFollowing, posts, videos });
+  const onlineUsers = req.app.get('onlineUsers');
+  const online = !!(onlineUsers && onlineUsers.has(id));
+  res.json({ user: { ...publicUser(user), online }, stats, isFollowing, posts, videos });
 });
 
 router.put('/:id', auth, (req, res) => {

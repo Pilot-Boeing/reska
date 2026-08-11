@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#0b0a12">
+  <meta name="theme-color" content="#0a0e17">
   <title>РЕСКА — сообщество</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a855f7'/%3E%3Cstop offset='1' stop-color='%2322d3ee'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='50' cy='50' r='46' fill='url(%23g)'/%3E%3Ctext x='50' y='64' font-size='46' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%232f7bd9'/%3E%3Cstop offset='1' stop-color='%23F68121'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='50' cy='50' r='48' fill='url(%23g)'/%3E%3Cpath d='M50 14 L57 39 L83 39 L62 54 L70 80 L50 65 L30 80 L38 54 L17 39 L43 39 Z' fill='white'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -14,7 +14,7 @@
   <div id="auth-screen" class="hidden">
     <div class="auth-bg"></div>
     <div class="auth-card glass">
-      <div class="auth-logo">Р<span class="glow">Е</span>СК</div>
+      <div class="auth-logo"><span class="logo-star">★</span>РЕСКА</div>
       <p class="auth-sub">Сообщество. Видео. Клипы. Чат.</p>
       <div class="tabs">
         <button class="tab active" data-tab="login">Вход</button>
@@ -52,7 +52,7 @@
     <!-- ===== ЛЕВЫЙ САЙДБАР ===== -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-top">
-        <a class="sidebar-logo" href="#/feed">РЕСКА</a>
+        <a class="sidebar-logo" href="#/feed"><span class="logo-star">★</span>РЕСКА</a>
         <nav class="sidebar-nav">
           <a href="#/feed" data-nav="feed" class="slink">
             <span class="slink-icon">🏠</span><span class="slink-text">Лента</span>
@@ -100,8 +100,8 @@
             <a href="#/profile/me">👤 Мой профиль</a>
             <a href="#/edit-profile">✏ Редактировать</a>
             <a href="#/security">🔐 Безопасность</a>
-            <a href="#/videos/new">▶ Загрузить видео</a>
-            <a href="#/clips/new">🎬 Добавить клип</a>
+            <a href="#/videos-new">▶ Загрузить видео</a>
+            <a href="#/clips-new">🎬 Добавить клип</a>
             <a href="#" data-action="logout">🚪 Выйти</a>
           </div>
         </div>
@@ -128,6 +128,14 @@
       <a href="#/messages" data-nav="messages"><span class="mn-ico">💬</span><span class="mn-txt">Чат</span></a>
       <a href="#/profile/me" data-nav="profile"><span class="mn-ico">👤</span><span class="mn-txt">Профиль</span></a>
     </nav>
+
+    <!-- ===== ПЛАВАЮЩАЯ КНОПКА «+» ===== -->
+    <button class="fab" id="fab-main" title="Создать">＋</button>
+    <div class="fab-menu hidden" id="fab-menu">
+      <a href="#" data-fab="post">📝 Новый пост</a>
+      <a href="#/videos-new" data-fab="video">▶ Загрузить видео</a>
+      <a href="#/clips-new" data-fab="clip">🎬 Добавить клип</a>
+    </div>
   </div>
 
   <div id="modal-root"></div>

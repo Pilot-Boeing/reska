@@ -291,8 +291,27 @@ async function connectSocket() {
   socket = io({ auth: { token: data.token } });
 
   socket.on('chat:message', async (payload) => {
-    const mine = payload.message.sender_id === me.id;
-    if (!mine && activeChatUid === payload.chatUid) {
+    const mine = payload.message ? payload.message.sender_id === me.id : false;
+    const action = payload.action || 'new';
+    const inActiveChat = activeChatUid === payload.chatUid;
+
+    if (action === 'delete') {
+      if (inActiveChat) removeMessageEl(payload.messageId);
+      return refreshChatList();
+    }
+
+    if (mine && action === 'edit' && inActiveChat) {
+      const m = await decryptMessage(payload.message, payload.chatUid);
+      updateMessageEl(payload.message.id, m);
+      return;
+    }
+    if (mine && action === 'reaction' && inActiveChat) {
+      const m = await decryptMessage(payload.message, payload.chatUid);
+      updateMessageEl(payload.message.id, m);
+      return;
+    }
+
+    if (!mine && inActiveChat) {
       const m = await decryptMessage(payload.message, payload.chatUid);
       appendMessage(m);
       markChatRead(payload.chatUid);
@@ -302,7 +321,11 @@ async function connectSocket() {
     if (!mine) refreshChatList();
   });
 
-  socket.on('chat:read', () => { loadChatBadges(); });
+  socket.on('chat:typing', (payload) => {
+    if (activeChatUid === payload.chatUid) showTyping();
+  });
+
+  socket.on('chat:read', () => { loadChatBadges(); updateReadMarks(); });
 }
 
 function bumpBadge() {
@@ -357,7 +380,24 @@ function buildPost(post) {
   authorEl.href = '#/profile/' + authorId;
   authorEl.textContent = post.name;
   $('.post-time', node).textContent = timeAgo(post.created_at);
-  $('.post-text', node).textContent = post.text;
+  const textEl = $('.post-text', node);
+  textEl.textContent = post.text;
+  if (post.text && post.text.length > 400) {
+    textEl.classList.add('collapsed');
+    const btn = document.createElement('button');
+    btn.className = 'read-more-btn';
+    btn.textContent = 'Читать далее';
+    btn.addEventListener('click', () => {
+      if (textEl.classList.contains('collapsed')) {
+        textEl.classList.remove('collapsed');
+        btn.textContent = 'Свернуть';
+      } else {
+        textEl.classList.add('collapsed');
+        btn.textContent = 'Читать далее';
+      }
+    });
+    $('.post-head', node).insertAdjacentElement('afterend', btn);
+  }
 
   if (post.media) {
     const wrap = $('.post-media-wrap', node);
@@ -392,7 +432,31 @@ async function viewFeed() {
 }
 
 function wirePostEvents(feed) {
+  let postLastTap = 0;
   feed.addEventListener('click', async (e) => {
+    const postNode = e.target.closest('.post');
+    if (postNode && !e.target.closest('button, a, input, video, .comment-form')) {
+      const now = Date.now();
+      if (now - postLastTap < 320) {
+        postLastTap = 0;
+        const likeBtn = $('[data-action="like"]', postNode);
+        if (likeBtn && !likeBtn.classList.contains('liked')) {
+          try {
+            const res = await api(`/posts/${postNode.dataset.uid || postNode.dataset.id}/like`, { method: 'POST' });
+            likeBtn.classList.add('liked');
+            likeBtn.querySelector('.pact-ico').textContent = '❤️';
+            likeBtn.querySelector('.like-count').textContent = res.likes || '';
+            const heart = document.createElement('div');
+            heart.className = 'post-heart';
+            heart.textContent = '❤️';
+            $('.post-text', postNode).appendChild(heart);
+            setTimeout(() => heart.remove(), 700);
+          } catch (err) { toast(err.message, 'error'); }
+        }
+        return;
+      }
+      postLastTap = now;
+    }
     const actionBtn = e.target.closest('[data-action]');
     if (!actionBtn) return;
     const root = actionBtn.closest('.post');
@@ -511,7 +575,10 @@ async function viewVideos(isClips) {
   if (isClips) return viewClipsReel(data.videos);
   const view = $('#view');
   view.innerHTML = `
-    <div class="page-title">🎬 Видео</div>
+    <div class="page-head">
+      <h1 class="page-title" style="margin:0">🎬 Видео</h1>
+      <a class="btn btn-primary" href="#/videos-new">＋ Загрузить видео</a>
+    </div>
     <div class="video-grid" id="video-grid"></div>`;
   const g = $('#video-grid');
   if (!data.videos.length) g.innerHTML = `<div class="empty">Нет видео. Загрузите первым!</div>`;
@@ -522,7 +589,9 @@ async function viewClipsReel(videos) {
   const view = $('#view');
   view.innerHTML = '';
   if (!videos.length) {
-    view.innerHTML = `<div class="clips-empty"><div class="empty">Нет клипов. Добавьте видео как клип!</div></div>`;
+    view.innerHTML = `<div class="clips-empty">
+      <div class="empty">Нет клипов. Добавьте видео как клип!<div style="margin-top:14px"><a class="btn btn-primary" href="#/clips-new">＋ Добавить клип</a></div></div>
+    </div>`;
     return;
   }
   const feed = document.createElement('div');
@@ -534,6 +603,13 @@ async function viewClipsReel(videos) {
   nav.className = 'clips-nav';
   nav.innerHTML = `<button data-dir="up" title="Назад">^</button><button data-dir="down" title="Вперёд">▼</button>`;
   view.appendChild(nav);
+
+  const addBtn = document.createElement('a');
+  addBtn.className = 'fab fab-clips';
+  addBtn.href = '#/clips-new';
+  addBtn.title = 'Добавить клип';
+  addBtn.innerHTML = '＋';
+  view.appendChild(addBtn);
 
   const clips = $$('.clip', feed);
   const vids = clips.map(n => $('video', n));
@@ -739,126 +815,6 @@ function toggleLikeGlobal(clipEl, vid) {
     btn.querySelector('.clip-act-ico').textContent = res.liked ? '❤️' : '🤍';
     btn.querySelector('.clip-like-count').textContent = res.likes || '0';
   }).catch((err) => toast(err.message, 'error'));
-}
-
-
-
-/* =========================================================
-   ВИДЕО СЕТКА + ОВЕРЛЕЙ-ПЛЕЕР
-   ========================================================= */
-function buildVideoCard(v) {
-  const node = $('#tpl-video-card').content.cloneNode(true);
-  const card = $('[data-role="video-card"]', node);
-  card.dataset.id = v.id;
-  card.dataset.uid = v.uid;
-  $('img', node).src = mediaUrl(v.thumb);
-  $('img', node).alt = v.title;
-  $('.views-badge', node).textContent = '👁 ' + fmtViews(v.views);
-  $('.video-title', node).textContent = v.title;
-  $('.video-author', node).textContent = `${v.name} · ${fmtViews(v.views)} просмотров`;
-  if (v.is_clip) $('.clip-badge', node).classList.remove('hidden');
-  card.addEventListener('click', () => openVideoOverlay(v.id));
-  return node;
-}
-
-async function viewVideos(isClips) {
-  const data = await api('/videos?clip=' + (isClips ? '1' : '0'));
-  if (isClips) return viewClipsReel(data.videos);
-  const view = $('#view');
-  view.innerHTML = `
-    <div class="page-title">🎬 Видео</div>
-    <div class="video-grid" id="video-grid"></div>`;
-  const g = $('#video-grid');
-  if (!data.videos.length) g.innerHTML = `<div class="empty">Нет видео. Загрузите первым!</div>`;
-  data.videos.forEach((v) => g.appendChild(buildVideoCard(v)));
-}
-
-async function viewClipsReel(videos) {
-  const view = $('#view');
-  view.innerHTML = `
-    <div class="page-title">🎬 Клипы</div>
-    <div class="clips-feed" id="clips-feed"></div>
-    <div class="clips-nav">
-      <button data-dir="up" title="Назад">^</button>
-      <button data-dir="down" title="Вперёд">▼</button>
-    </div>`;
-  const feed = $('#clips-feed');
-  if (!videos.length) {
-    feed.innerHTML = `<div class="empty">Нет клипов. Добавьте видео как клип!</div>`;
-    $('.clips-nav', view).style.display = 'none';
-    return;
-  }
-
-  videos.forEach((v) => feed.appendChild(buildClipCard(v)));
-
-  const clips = $$('.clip', feed);
-  const observers = [];
-
-  const playObserver = new IntersectionObserver((entries) => {
-    entries.forEach((entry) => {
-      const vid = $('video', entry.target);
-      if (!vid) return;
-      if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
-        vid.play().catch(() => {});
-        entry.target.dataset.playing = '1';
-      } else {
-        vid.pause();
-        delete entry.target.dataset.playing;
-      }
-    });
-  }, { threshold: [0, 0.6, 1] });
-
-  clips.forEach((c) => playObserver.observe(c));
-
-  const navObserver = new IntersectionObserver((entries) => {
-    entries.forEach((entry) => {
-      const idx = Number(entry.target.dataset.idx);
-      if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
-        clips.forEach((c, i) => c.classList.toggle('active', i === idx));
-      }
-    });
-  }, { threshold: 0.6 });
-  clips.forEach((c, i) => { c.dataset.idx = String(i); navObserver.observe(c); });
-
-  function scrollToClip(dir) {
-    const active = $('.clip.active', feed) || clips[0];
-    const idx = clips.indexOf(active);
-    const next = dir === 'down' ? Math.min(idx + 1, clips.length - 1) : Math.max(idx - 1, 0);
-    if (next >= 0 && next < clips.length) clips[next].scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-  $$('.clips-nav button', view).forEach((b) => b.addEventListener('click', () => scrollToClip(b.dataset.dir)));
-  view._clipCleanup = () => { playObserver.disconnect(); navObserver.disconnect(); };
-}
-
-function buildClipCard(v) {
-  const node = $('#tpl-clip').content.cloneNode(true);
-  const clip = $('[data-role="clip"]', node);
-  clip.dataset.id = v.id;
-  clip.dataset.uid = v.uid;
-  const video = $('video', node);
-  video.src = mediaUrl(v.file);
-  video.poster = mediaUrl(v.thumb);
-  $('.clip-like-count', node).textContent = v.likes || '0';
-  $('.clip-comment-count', node).textContent = v.comments != null ? v.comments : '0';
-  $('.clip-author', node).textContent = v.name || '';
-  $('.clip-title', node).textContent = v.title || '';
-
-  $('[data-action="like"]', node).addEventListener('click', async (e) => {
-    const btn = e.currentTarget;
-    try {
-      const res = btn.classList.contains('liked')
-        ? await api(`/videos/${v.uid}/like`, { method: 'DELETE' })
-        : await api(`/videos/${v.uid}/like`, { method: 'POST' });
-      btn.classList.toggle('liked', res.liked);
-      btn.querySelector('.clip-act-ico').textContent = res.liked ? '❤️' : '🤍';
-      btn.querySelector('.clip-like-count').textContent = res.likes || '0';
-    } catch (err) { toast(err.message, 'error'); }
-  });
-
-  $('[data-action="toggle-comments"]', node).addEventListener('click', () => openVideoOverlay(v.uid));
-  $('[data-action="share"]', node).addEventListener('click', () => shareLink('#/watch/' + v.uid, v.title));
-
-  return node;
 }
 
 async function openVideoOverlay(id) {
@@ -1107,6 +1063,12 @@ async function openChat(chatUid) {
   msgs.forEach((m) => appendMessage(m));
   scrollChat();
 
+  typingTimer = null;
+  const chatInput = $('input', win);
+  chatInput.addEventListener('input', () => {
+    if (chatInput.value.trim() && !typingTimer) sendTyping(chatUid);
+  });
+
   $('#chat-input').addEventListener('submit', async (e) => {
     e.preventDefault();
     const input = $('input', e.target);
@@ -1142,10 +1104,180 @@ function appendMessage(m) {
   const node = $('#tpl-message').content.cloneNode(true);
   const div = $('.msg', node);
   div.classList.toggle('mine', m.sender_id === me.id);
+  div.dataset.mid = m.id;
   $('.msg-bubble', node).textContent = m.text;
   if (m.e2eeText) $('.msg-bubble', node).classList.add('e2ee');
-  $('.msg-time', node).textContent = timeAgo(m.created_at);
+  if (m.edited && !m.e2eeText) $('.msg-bubble', node).textContent += ' (ред.)';
+  const time = $('.msg-time', node);
+  time.textContent = timeAgo(m.created_at);
+  if (m.sender_id === me.id) {
+    const mark = document.createElement('span');
+    mark.className = 'msg-read sent';
+    mark.textContent = '✓';
+    time.appendChild(mark);
+  }
+  const actions = document.createElement('div');
+  actions.className = 'msg-actions';
+  if (m.sender_id === me.id) {
+    const ed = document.createElement('button');
+    ed.textContent = '✏';
+    ed.title = 'Редактировать';
+    ed.addEventListener('click', () => editMessage(div, m));
+    actions.appendChild(ed);
+    const del = document.createElement('button');
+    del.textContent = '🗑';
+    del.title = 'Удалить';
+    del.addEventListener('click', () => deleteMessage(m));
+    actions.appendChild(del);
+  }
+  const react = document.createElement('button');
+  react.textContent = '😊';
+  react.title = 'Реакция';
+  react.addEventListener('click', () => {
+    const picker = $('.reaction-picker', div);
+    if (picker) picker.remove();
+    else {
+      const p = document.createElement('div');
+      p.className = 'reaction-picker';
+      ['👍', '❤️', '🔥', '😄', '🎉'].forEach((em) => {
+        const b = document.createElement('button');
+        b.textContent = em;
+        b.addEventListener('click', () => { toggleReaction(m, em); p.remove(); });
+        p.appendChild(b);
+      });
+      div.appendChild(p);
+    }
+  });
+  actions.appendChild(react);
+  div.appendChild(actions);
+  const rx = m.reactions && m.reactions.length ? m.reactions : null;
+  if (rx) {
+    const box = document.createElement('div');
+    box.className = 'msg-reactions';
+    rx.forEach((r) => {
+      const chip = document.createElement('button');
+      chip.className = 'reaction-chip' + ((m.myEmoji || []).includes(r.emoji) ? ' mine' : '');
+      chip.textContent = r.emoji + ' ' + r.count;
+      chip.addEventListener('click', () => toggleReaction(m, r.emoji));
+      box.appendChild(chip);
+    });
+    div.appendChild(box);
+  }
   container.appendChild(node);
+}
+
+function removeMessageEl(id) {
+  const el = document.querySelector(`#chat-messages .msg[data-mid="${id}"]`);
+  if (el) el.remove();
+}
+
+function updateMessageEl(id, m) {
+  const el = document.querySelector(`#chat-messages .msg[data-mid="${id}"]`);
+  if (!el) return;
+  const bubble = $('.msg-bubble', el);
+  bubble.textContent = m.text;
+  bubble.classList.toggle('e2ee', !!m.e2eeText);
+  if (m.edited && !m.e2eeText) bubble.textContent += ' (ред.)';
+  const box = $('.msg-reactions', el);
+  if (box) box.remove();
+  if (m.reactions && m.reactions.length) {
+    const nb = document.createElement('div');
+    nb.className = 'msg-reactions';
+    m.reactions.forEach((r) => {
+      const chip = document.createElement('button');
+      chip.className = 'reaction-chip' + ((m.myEmoji || []).includes(r.emoji) ? ' mine' : '');
+      chip.textContent = r.emoji + ' ' + r.count;
+      chip.addEventListener('click', () => toggleReaction(m, r.emoji));
+      nb.appendChild(chip);
+    });
+    el.appendChild(nb);
+  }
+}
+
+async function editMessage(div, m) {
+  const bubble = $('.msg-bubble', div);
+  const current = bubble.dataset.rawText || m.text;
+  const input = document.createElement('input');
+  input.className = 'msg-edit-input';
+  input.value = current;
+  input.maxLength = 4000;
+  bubble.replaceWith(input);
+  input.focus();
+  input.select();
+  const commit = async () => {
+    const val = input.value.trim();
+    if (!val) { input.replaceWith(bubble); return; }
+    try {
+      let body = { text: val, e2ee: false };
+      const chat = chatsCache.find((c) => c.uid === activeChatUid);
+      const other = chat && chat.other ? chat.other : null;
+      const pub = other ? await otherPubKey(other.uid) : null;
+      if (pub) {
+        try {
+          const enc = await E2EE.encrypt(val, pub);
+          body = { text: JSON.stringify(enc), e2ee: true };
+        } catch (err) {}
+      }
+      const res = await api(`/chats/${activeChatUid}/messages/${m.id}`, { method: 'PATCH', body });
+      const updated = await decryptMessage(res.message, activeChatUid);
+      updateMessageEl(m.id, updated);
+      refreshChatList();
+    } catch (err) { toast(err.message, 'error'); input.replaceWith(bubble); }
+  };
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    if (e.key === 'Escape') input.replaceWith(bubble);
+  });
+  input.addEventListener('blur', commit);
+}
+
+async function deleteMessage(m) {
+  if (!confirm('Удалить сообщение?')) return;
+  try {
+    await api(`/chats/${activeChatUid}/messages/${m.id}`, { method: 'DELETE' });
+    removeMessageEl(m.id);
+    refreshChatList();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+async function toggleReaction(m, emoji) {
+  try {
+    const res = await api(`/chats/${activeChatUid}/messages/${m.id}/reaction`, { method: 'POST', body: { emoji } });
+    const updated = await decryptMessage(res.message, activeChatUid);
+    updateMessageEl(m.id, updated);
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+let typingTimer = null;
+function sendTyping(chatUid) {
+  api(`/chats/${chatUid}/typing`, { method: 'POST', silent: true }).catch(() => {});
+  typingTimer = setTimeout(() => { typingTimer = null; }, 2000);
+}
+
+function showTyping() {
+  const container = $('#chat-messages');
+  if (!container) return;
+  let ind = $('#typing-ind');
+  if (!ind) {
+    ind = document.createElement('div');
+    ind.id = 'typing-ind';
+    ind.className = 'typing-ind';
+    ind.innerHTML = `<span class="dots"><i></i><i></i><i></i></span> печатает…`;
+    container.appendChild(ind);
+  }
+  clearTimeout(ind._t);
+  ind._t = setTimeout(() => ind.remove(), 2500);
+  scrollChat();
+}
+
+function updateReadMarks() {
+  const container = $('#chat-messages');
+  if (!container) return;
+  container.querySelectorAll('.msg.mine .msg-read').forEach((m) => {
+    m.textContent = '✓✓';
+    m.classList.add('read');
+    m.classList.remove('sent');
+  });
 }
 
 function scrollChat() {
@@ -1217,12 +1349,12 @@ async function viewProfile(id) {
   view.innerHTML = `
     <div class="profile">
       <div class="profile-head card">
-        <img class="avatar xl" src="${mediaUrl(u.avatar)}" alt="">
+        <span class="avatar-ring ${u.online ? '' : 'offline'}"><img class="avatar xl" src="${mediaUrl(u.avatar)}" alt=""></span>
         <div class="profile-info">
           <div class="profile-name">${esc(u.name)}
             <span class="role-badge ${u.role}">${u.role === 'admin' ? 'АДМИН' : 'УЧАСТНИК'}</span>
           </div>
-          <div class="profile-status">${esc(u.status || '')}</div>
+          <div class="profile-status">${u.online ? '<span class="online-dot"></span> онлайн' : ''} ${esc(u.status || '')}</div>
           <p class="profile-bio">${esc(u.bio || '')}</p>
           <div class="profile-stats">
             <div class="stat"><b>${data.stats.posts}</b><span>Постов</span></div>
@@ -1240,13 +1372,22 @@ async function viewProfile(id) {
           </div>
         </div>
       </div>
-      <div class="profile-tabs">
-        <div class="page-title" style="font-size:17px">📝 Последние посты</div>
-        <div id="profile-posts"></div>
-        <div class="page-title" style="font-size:17px;margin-top:10px">▶ Последние видео</div>
-        <div class="video-grid" id="profile-videos"></div>
+      <div class="profile-tabs-nav">
+        <button data-ptab="posts" class="active">📝 Посты</button>
+        <button data-ptab="videos">▶ Видео</button>
       </div>
+      <div id="profile-posts"></div>
+      <div class="video-grid hidden" id="profile-videos"></div>
     </div>`;
+
+  view.querySelector('.profile-tabs-nav').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-ptab]');
+    if (!btn) return;
+    view.querySelectorAll('[data-ptab]').forEach((b) => b.classList.toggle('active', b === btn));
+    const postsMode = btn.dataset.ptab === 'posts';
+    $('#profile-posts', view).classList.toggle('hidden', !postsMode);
+    $('#profile-videos', view).classList.toggle('hidden', postsMode);
+  });
 
   const actions = view.querySelector('.profile-head');
   actions.addEventListener('click', async (e) => {
@@ -1765,6 +1906,20 @@ function wireGlobal() {
   document.addEventListener('click', () => $('#user-menu').classList.add('hidden'));
   $('#user-menu').addEventListener('click', (e) => { if (e.target.closest('[data-action="logout"]')) { e.preventDefault(); logout(); } });
   $('#new-post-btn').addEventListener('click', openNewPostModal);
+
+  const fabMain = $('#fab-main');
+  const fabMenu = $('#fab-menu');
+  fabMain.addEventListener('click', (e) => { e.stopPropagation(); fabMenu.classList.toggle('hidden'); });
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('#fab-menu') || e.target.closest('#fab-main')) return;
+    fabMenu.classList.add('hidden');
+  });
+  fabMenu.addEventListener('click', (e) => {
+    const item = e.target.closest('[data-fab]');
+    if (!item) return;
+    fabMenu.classList.add('hidden');
+    if (item.dataset.fab === 'post') e.preventDefault(), openNewPostModal();
+  });
 
   $('#menu-toggle').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
   $('#sidebar').addEventListener('click', (e) => {

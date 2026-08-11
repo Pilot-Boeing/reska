@@ -151,7 +151,17 @@ CREATE TABLE IF NOT EXISTS messages (
   text TEXT NOT NULL,
   e2ee INTEGER NOT NULL DEFAULT 0,
   read INTEGER NOT NULL DEFAULT 0,
+  edited INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS message_reactions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  emoji TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (message_id, user_id, emoji)
 );
 
 CREATE TABLE IF NOT EXISTS logs (
@@ -205,6 +215,7 @@ function migrate() {
   addColumn('comments', 'uid', 'TEXT');
   addColumn('chats', 'uid', 'TEXT');
   addColumn('messages', 'e2ee', 'INTEGER NOT NULL DEFAULT 0');
+  addColumn('messages', 'edited', 'INTEGER NOT NULL DEFAULT 0');
   addColumn('sessions', 'device_id', 'TEXT');
   addColumn('sessions', 'ip_hash', 'TEXT');
   addColumn('sessions', 'ua_hash', 'TEXT');

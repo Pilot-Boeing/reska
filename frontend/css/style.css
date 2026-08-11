@@ -1,26 +1,27 @@
 /* =========================================================
-   РЕСКА — тёмная тема. Фон #0b0a12, карточки #14141f,
-   основной #a855f7, радиус 16px, blur-стекло, 0.2s
+   РЕСКА — тёмная тема в цветах МЧС. Фон #0a0e17 (сине-чёрный),
+   карточки #10162a, синий #2f7bd9, оранжевый #F68121,
+   стиль X (чистые карточки) + VK (навигация) + Instagram (кружки, FAB)
    ========================================================= */
 :root {
-  --bg: #0b0a12;
-  --bg2: #0e0d18;
-  --card: #14141f;
-  --card2: #191928;
-  --card3: #1f1f30;
-  --border: rgba(168, 85, 247, 0.18);
-  --border-strong: rgba(168, 85, 247, 0.4);
-  --primary: #a855f7;
-  --primary2: #7c3aed;
-  --accent: #22d3ee;
-  --pink: #f472b6;
-  --text: #e7e7f2;
-  --muted: #9d9db8;
+  --bg: #0a0e17;
+  --bg2: #0d1220;
+  --card: #10162a;
+  --card2: #141d33;
+  --card3: #1a2540;
+  --border: rgba(47, 123, 217, 0.22);
+  --border-strong: rgba(47, 123, 217, 0.45);
+  --primary: #2f7bd9;
+  --primary2: #1f5fb5;
+  --accent: #F68121;
+  --pink: #ff5c7a;
+  --text: #e8ecf3;
+  --muted: #8b95a7;
   --danger: #fb7185;
   --ok: #34d399;
-  --radius: 16px;
-  --radius-sm: 10px;
-  --shadow: 0 10px 40px rgba(124, 58, 237, 0.18);
+  --radius: 14px;
+  --radius-sm: 9px;
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
   --font: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
   --sidebar-w: 232px;
   --topbar-h: 60px;
@@ -38,8 +39,8 @@ html, body {
 
 body {
   background-image:
-    radial-gradient(1200px 600px at 85% -10%, rgba(168, 85, 247, 0.12), transparent 60%),
-    radial-gradient(1000px 500px at -10% 110%, rgba(34, 211, 238, 0.07), transparent 60%);
+    radial-gradient(1200px 600px at 85% -10%, rgba(47, 123, 217, 0.14), transparent 60%),
+    radial-gradient(1000px 500px at -10% 110%, rgba(246, 129, 33, 0.08), transparent 60%);
   background-attachment: fixed;
 }
 
@@ -63,10 +64,10 @@ a:hover { text-decoration: underline; }
   font-weight: 600;
   color: #fff;
   background: linear-gradient(120deg, var(--primary), var(--primary2));
-  box-shadow: 0 6px 20px rgba(124, 58, 237, 0.4);
+  box-shadow: 0 6px 20px rgba(31, 95, 181, 0.4);
   transition: transform 0.15s, box-shadow 0.2s, opacity 0.2s;
 }
-.btn:hover { transform: translateY(-1px); box-shadow: 0 8px 26px rgba(124, 58, 237, 0.55); text-decoration: none; }
+.btn:hover { transform: translateY(-1px); box-shadow: 0 8px 26px rgba(31, 95, 181, 0.55); text-decoration: none; }
 .btn:active { transform: translateY(0); }
 .btn-sm { padding: 6px 12px; font-size: 13px; }
 .btn-block { width: 100%; }
@@ -76,7 +77,7 @@ a:hover { text-decoration: underline; }
   box-shadow: none;
   color: var(--text);
 }
-.btn-ghost:hover { border-color: var(--primary); box-shadow: 0 0 18px rgba(168, 85, 247, 0.3); }
+.btn-ghost:hover { border-color: var(--primary); box-shadow: 0 0 18px rgba(47, 123, 217, 0.35); }
 .btn-danger { background: linear-gradient(120deg, var(--danger), #e11d48); box-shadow: 0 6px 20px rgba(251, 113, 133, 0.35); }
 
 .icon-btn {
@@ -115,11 +116,18 @@ a:hover { text-decoration: underline; }
 .auth-bg {
   position: fixed; inset: 0; pointer-events: none;
   background:
-    radial-gradient(700px 400px at 30% 20%, rgba(168, 85, 247, 0.18), transparent 60%),
-    radial-gradient(600px 400px at 80% 80%, rgba(34, 211, 238, 0.1), transparent 60%);
+    radial-gradient(700px 400px at 30% 20%, rgba(47, 123, 217, 0.22), transparent 60%),
+    radial-gradient(600px 400px at 80% 80%, rgba(246, 129, 33, 0.12), transparent 60%);
 }
 .auth-card { position: relative; width: 100%; max-width: 400px; padding: 34px; animation: fadeUp 0.4s ease; }
 .auth-logo { font-size: 46px; font-weight: 900; letter-spacing: 6px; text-align: center; }
+.logo-star {
+  display: inline-block; transform: translateY(-2px);
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  font-size: 0.95em; margin-right: 2px;
+}
 .auth-sub { text-align: center; color: var(--muted); margin: 8px 0 24px; }
 
 .tabs { display: flex; gap: 8px; margin-bottom: 20px; background: var(--bg2); border-radius: var(--radius-sm); padding: 5px; }
@@ -139,7 +147,7 @@ a:hover { text-decoration: underline; }
   font-family: var(--font);
   transition: border-color 0.2s, box-shadow 0.2s;
 }
-.field input:focus, .field textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.15); }
+.field input:focus, .field textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(47, 123, 217, 0.15); }
 textarea { resize: vertical; }
 
 /* ---------- аватарки ---------- */
@@ -240,7 +248,7 @@ textarea { resize: vertical; }
   position: relative;
 }
 .slink:hover { background: var(--card); color: var(--text); text-decoration: none; }
-.slink.active { background: linear-gradient(120deg, rgba(168, 85, 247, 0.25), rgba(124, 58, 237, 0.15)); color: #fff; }
+.slink.active { background: linear-gradient(120deg, rgba(47, 123, 217, 0.25), rgba(31, 95, 181, 0.15)); color: #fff; }
 .slink-icon { font-size: 18px; width: 22px; text-align: center; flex-shrink: 0; }
 .slink-text { flex: 1; white-space: nowrap; }
 .slink .badge { margin-left: auto; }
@@ -423,7 +431,6 @@ textarea { resize: vertical; }
   scrollbar-width: none;
   background: #000; z-index: 50;
 }
-.clips-feed::-webkit-scrollbar { display: none; }
 .clips-feed::-webkit-scrollbar { display: none; }
 .clips-empty {
   position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
@@ -627,7 +634,7 @@ textarea { resize: vertical; }
   cursor: pointer; transition: all 0.15s;
 }
 .chat-item:hover { background: var(--card3); }
-.chat-item.active { background: linear-gradient(120deg, rgba(168, 85, 247, 0.2), rgba(124, 58, 237, 0.1)); }
+.chat-item.active { background: linear-gradient(120deg, rgba(47, 123, 217, 0.2), rgba(31, 95, 181, 0.12)); }
 .chat-item-info { flex: 1; min-width: 0; }
 .chat-item-name { display: flex; justify-content: space-between; font-weight: 600; font-size: 14px; }
 .chat-item-last { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
@@ -695,7 +702,7 @@ textarea { resize: vertical; }
   color: var(--muted); cursor: pointer;
   transition: all 0.2s;
 }
-.file-zone:hover, .file-zone.drag { border-color: var(--primary); color: var(--text); background: rgba(168, 85, 247, 0.06); }
+.file-zone:hover, .file-zone.drag { border-color: var(--primary); color: var(--text); background: rgba(246, 129, 33, 0.08); }
 .file-zone .fname { margin-top: 8px; color: var(--text); font-size: 13px; }
 
 /* =========================================================
@@ -783,4 +790,130 @@ textarea { resize: vertical; }
   .view { padding: 12px; padding-bottom: 80px; }
   .auth-card { padding: 24px; }
   .auth-logo { font-size: 38px; }
+}
+
+/* =========================================================
+   ФИШКИ: шапка страницы, FAB, статус-кольца
+   ========================================================= */
+.page-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 18px; flex-wrap: wrap;
+}
+
+.fab {
+  position: fixed; right: 22px; bottom: 90px;
+  width: 54px; height: 54px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #e0701a);
+  color: #fff; font-size: 28px; line-height: 1;
+  display: none; align-items: center; justify-content: center;
+  box-shadow: 0 8px 24px rgba(246, 129, 33, 0.45);
+  z-index: 120; text-decoration: none !important;
+  transition: transform 0.15s, box-shadow 0.2s;
+}
+@media (max-width: 860px) { .fab { display: flex; } }
+.fab:hover { transform: translateY(-2px) scale(1.04); box-shadow: 0 10px 30px rgba(246, 129, 33, 0.6); }
+.fab:active { transform: scale(0.96); }
+
+.fab-clips { bottom: 90px; right: 20px; display: flex; }
+
+.fab-menu {
+  position: fixed; right: 20px; bottom: 154px; z-index: 121;
+  display: flex; flex-direction: column; gap: 10px; align-items: flex-end;
+}
+@media (min-width: 861px) { .fab-menu { display: none !important; } }
+.fab-menu a {
+  background: var(--card2); border: 1px solid var(--border-strong);
+  color: var(--text); padding: 10px 16px; border-radius: 22px;
+  font-size: 14px; font-weight: 600; box-shadow: var(--shadow);
+  white-space: nowrap; text-decoration: none !important;
+  animation: fadeUp 0.2s ease;
+}
+.fab-menu a:hover { border-color: var(--accent); color: var(--accent); }
+
+/* кольцо-статус (онлайн) вокруг аватара */
+.avatar-ring { position: relative; display: inline-flex; }
+.avatar-ring::after {
+  content: ''; position: absolute; inset: -3px; border-radius: 50%;
+  background: conic-gradient(var(--ok), transparent 65%, var(--ok));
+  z-index: 0; animation: ring-spin 3s linear infinite;
+}
+.avatar-ring img { position: relative; z-index: 1; }
+.avatar-ring.offline::after { background: var(--muted); animation: none; opacity: 0.35; }
+@keyframes ring-spin { to { transform: rotate(360deg); } }
+
+/* индикатор «печатает…» */
+.typing-ind {
+  display: inline-flex; align-items: center; gap: 5px;
+  color: var(--muted); font-size: 12px; padding: 8px 4px;
+}
+.typing-ind .dots { display: inline-flex; gap: 3px; }
+.typing-ind .dots i {
+  width: 5px; height: 5px; border-radius: 50%; background: var(--primary);
+  animation: dot-bounce 1.2s infinite ease-in-out;
+}
+.typing-ind .dots i:nth-child(2) { animation-delay: 0.15s; }
+.typing-ind .dots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes dot-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
+
+/* галочки прочитано */
+.msg-read {
+  font-size: 11px; letter-spacing: -1px;
+}
+.msg-read.sent { color: var(--muted); }
+.msg-read.read { color: var(--ok); }
+
+/* действия над своим сообщением */
+.msg-actions { display: none; gap: 4px; margin-top: 4px; }
+.msg:hover .msg-actions, .msg.actions-open .msg-actions { display: inline-flex; }
+.msg-actions button {
+  background: transparent; border: 1px solid var(--border); color: var(--muted);
+  border-radius: 6px; width: 26px; height: 26px; font-size: 12px; cursor: pointer;
+}
+.msg-actions button:hover { border-color: var(--primary); color: var(--text); }
+.msg-edit-input {
+  background: var(--bg2); border: 1px solid var(--accent); color: var(--text);
+  border-radius: 10px; padding: 8px 12px; font-size: 14px; outline: none; width: 100%;
+}
+
+/* реакции на сообщения */
+.msg-reactions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.reaction-chip {
+  border: 1px solid var(--border); background: var(--card3);
+  border-radius: 12px; padding: 2px 8px; font-size: 12px; cursor: pointer;
+  color: var(--text); display: inline-flex; align-items: center; gap: 4px;
+}
+.reaction-chip.mine { border-color: var(--accent); }
+.reaction-picker { display: flex; gap: 4px; padding: 6px; background: var(--card3); border-radius: 12px; margin-top: 4px; }
+.reaction-picker button { background: none; border: none; font-size: 17px; cursor: pointer; padding: 2px; }
+
+/* «Читать далее» для постов */
+.post-text.collapsed { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.read-more-btn {
+  background: none; border: none; color: var(--primary); cursor: pointer;
+  font-size: 13px; font-weight: 600; padding: 6px 18px 0; display: block;
+}
+.read-more-btn:hover { color: var(--accent); }
+.post-heart {
+  position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%);
+  font-size: 64px; pointer-events: none; animation: heart-pop 0.6s ease forwards; z-index: 5;
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
+}
+@keyframes heart-pop {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+  40% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+  100% { opacity: 0; transform: translate(-50%, -70%) scale(1); }
+}
+.post { position: relative; }
+
+/* табы профиля */
+.profile-tabs-nav { display: flex; gap: 6px; margin: 18px 0 14px; background: var(--bg2); padding: 5px; border-radius: var(--radius-sm); }
+.profile-tabs-nav button {
+  flex: 1; border: none; background: transparent; color: var(--muted);
+  padding: 9px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px;
+}
+.profile-tabs-nav button.active { background: linear-gradient(120deg, var(--primary), var(--primary2)); color: #fff; }
+.online-dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--ok); margin-right: 4px; vertical-align: 1px;
+  box-shadow: 0 0 8px var(--ok);
 }

@@ -153,8 +153,15 @@ io.use((socket, next) => {
   next();
 });
 
+const onlineUsers = new Set();
+app.set('onlineUsers', onlineUsers);
+
 io.on('connection', (socket) => {
   socket.join(`user:${socket.userId}`);
+  onlineUsers.add(socket.userId);
+  socket.on('disconnect', () => {
+    onlineUsers.delete(socket.userId);
+  });
 });
 
 /* ---------- HTTP + HTTPS ---------- */
