@@ -59,7 +59,7 @@ function merge(a, b) {
 async function api(method, url, { body, jar, raw } = {}) {
   const headers = {};
   if (jar) headers.cookie = Object.entries(jar).map(([k, v]) => `${k}=${v}`).join('; ');
-  if (method !== 'GET' && jar && jar.resk_csrf) headers['x-csrf-token'] = jar.resk_csrf;
+  if (method !== 'GET' && jar && jar.reska_csrf) headers['x-csrf-token'] = jar.reska_csrf;
   if (body && !raw) headers['content-type'] = 'application/json';
   const res = await fetch(BASE + url, {
     method,
@@ -175,13 +175,13 @@ async function main() {
 
   /* 5a. Автопочинка: убрали CSRF-cookie (как старая сессия) → 403 → me выдаёт cookie → пост проходит */
   const jarStale = { ...jarA };
-  delete jarStale.resk_csrf;
+  delete jarStale.reska_csrf;
   r = await api('POST', '/api/posts', { body: { text: 'x' }, jar: jarStale });
   check('403 без CSRF-cookie', r.res.status === 403 && r.data.csrfFresh === true, String(r.res.status));
   r = await api('GET', '/api/auth/me', { jar: jarStale });
-  const healedCsrf = jarFrom(r.res).resk_csrf;
+  const healedCsrf = jarFrom(r.res).reska_csrf;
   check('me выдаёт CSRF-cookie', !!healedCsrf);
-  merge(jarStale, { resk_csrf: healedCsrf });
+  merge(jarStale, { reska_csrf: healedCsrf });
   r = await api('POST', '/api/posts', { body: { text: 'после автопочинки' }, jar: jarStale });
   check('пост после автопочинки CSRF', r.res.status === 201, String(r.res.status));
 

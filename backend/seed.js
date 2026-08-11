@@ -15,7 +15,7 @@ const { randomUid } = require('./security');
 const DEMO_VIDEO = path.join(__dirname, 'demo', 'demo1.mp4');
 
 const DEMO_USERS = [
-  { username: 'admin', password: 'admin123', name: 'Администратор РЕСК', bio: 'Создатель платформы. Организатор сборов.', status: 'Онлайн', role: 'admin' },
+  { username: 'admin', password: 'admin123', name: 'Администратор РЕСКА', bio: 'Создатель платформы. Организатор сборов.', status: 'Онлайн', role: 'admin' },
   { username: 'alex', password: 'user123', name: 'Алексей Соколов', bio: 'Курсант, 2 курс. Готовлю конспекты по тактике.', status: 'На сборах', role: 'user' },
   { username: 'maria', password: 'user123', name: 'Мария Волкова', bio: 'Курсантка 3 курса. Организатор мероприятий.', status: 'Готовлю к экзамену', role: 'user' },
   { username: 'dima', password: 'user123', name: 'Дмитрий Орлов', bio: 'Студент, фанат выживания и первой помощи.', status: 'В походе', role: 'user' },
@@ -36,7 +36,7 @@ const POSTS = [
 ];
 
 const VIDEOS = [
-  { by: 'admin', title: 'Как устроена платформа РЕСК', desc: 'Краткий обзор: лента, видео, мессенджер и профиль.', clip: 0 },
+  { by: 'admin', title: 'Как устроена платформа РЕСКА', desc: 'Краткий обзор: лента, видео, мессенджер и профиль.', clip: 0 },
   { by: 'alex', title: 'Тактика: база для новичков', desc: 'Базовые принципы перемещения и сигналы.', clip: 0 },
   { by: 'maria', title: 'Клип: физподготовка', desc: 'Утренняя разминка, 30 секунд.', clip: 1 },
   { by: 'dima', title: 'Клип: первая помощь', desc: 'Наложение жгута за 20 секунд.', clip: 1 },

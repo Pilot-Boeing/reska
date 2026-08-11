@@ -190,8 +190,8 @@ function verifyTotp(secret, code, window = 1) {
 }
 
 function totpUri(secret, username) {
-  const label = encodeURIComponent('РЕСК:' + username);
-  return `otpauth://totp/${label}?secret=${encodeURIComponent(secret)}&issuer=РЕСК&algorithm=SHA1&digits=6&period=30`;
+  const label = encodeURIComponent('РЕСКА:' + username);
+  return `otpauth://totp/${label}?secret=${encodeURIComponent(secret)}&issuer=РЕСКА&algorithm=SHA1&digits=6&period=30`;
 }
 
 /* =========================================================

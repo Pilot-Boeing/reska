@@ -1,4 +1,4 @@
-package com.resk.app;
+package com.reska.app;
 
 import com.getcapacitor.BridgeActivity;
 

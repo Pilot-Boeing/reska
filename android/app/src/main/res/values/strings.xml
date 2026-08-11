@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">РЕСК</string>
-    <string name="title_activity_main">РЕСК</string>
-    <string name="package_name">com.resk.app</string>
-    <string name="custom_url_scheme">com.resk.app</string>
+    <string name="app_name">РЕСКА</string>
+    <string name="title_activity_main">РЕСКА</string>
+    <string name="package_name">com.reska.app</string>
+    <string name="custom_url_scheme">com.reska.app</string>
 </resources>

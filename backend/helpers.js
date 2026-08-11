@@ -32,10 +32,10 @@ function bindings(req) {
 }
 
 function getDeviceId(req, res) {
-  let d = parseCookies(req).resk_device;
+  let d = parseCookies(req).reska_device;
   if (!d || !/^[a-f0-9]{24}$/.test(d)) {
     d = crypto.randomBytes(12).toString('hex');
-    res.cookie('resk_device', d, secure({ httpOnly: true, sameSite: 'lax', maxAge: DEVICE_TTL }, req));
+    res.cookie('reska_device', d, secure({ httpOnly: true, sameSite: 'lax', maxAge: DEVICE_TTL }, req));
   }
   return d;
 }
@@ -55,9 +55,9 @@ function createSession(req, res, userId) {
   ).run(refresh, userId, deviceId, b.ip, b.ua, new Date(Date.now() + REFRESH_TTL).toISOString());
 
   const csrf = hmacSign(access, 'csrf');
-  res.cookie('resk_session', access, secure({ httpOnly: true, sameSite: 'lax', maxAge: SESSION_TTL }, req));
-  res.cookie('resk_refresh', refresh, secure({ httpOnly: true, sameSite: 'lax', maxAge: REFRESH_TTL }, req));
-  res.cookie('resk_csrf', csrf, secure({ httpOnly: false, sameSite: 'lax', maxAge: SESSION_TTL }, req));
+  res.cookie('reska_session', access, secure({ httpOnly: true, sameSite: 'lax', maxAge: SESSION_TTL }, req));
+  res.cookie('reska_refresh', refresh, secure({ httpOnly: true, sameSite: 'lax', maxAge: REFRESH_TTL }, req));
+  res.cookie('reska_csrf', csrf, secure({ httpOnly: false, sameSite: 'lax', maxAge: SESSION_TTL }, req));
   return { access, refresh, csrf, deviceId };
 }
 
@@ -67,7 +67,7 @@ function revokeDevice(userId, deviceId) {
 }
 
 function getSessionUser(req) {
-  const token = parseCookies(req).resk_session;
+  const token = parseCookies(req).reska_session;
   if (!token) return null;
   const row = db
     .prepare(
@@ -96,7 +96,7 @@ function getSessionUser(req) {
 
 /* ---------- ротация refresh-токена (получение новой access-сессии) ---------- */
 function refreshAccess(req, res) {
-  const rt = parseCookies(req).resk_refresh;
+  const rt = parseCookies(req).reska_refresh;
   if (!rt) return null;
   const row = db.prepare('SELECT * FROM refresh_tokens WHERE token = ?').get(rt);
   if (!row) return null;
@@ -130,18 +130,18 @@ function refreshAccess(req, res) {
   ).run(access, row.user_id, row.device_id, b.ip, b.ua, new Date(Date.now() + SESSION_TTL).toISOString());
 
   const csrf = hmacSign(access, 'csrf');
-  res.cookie('resk_session', access, secure({ httpOnly: true, sameSite: 'lax', maxAge: SESSION_TTL }, req));
-  res.cookie('resk_refresh', newRefresh, secure({ httpOnly: true, sameSite: 'lax', maxAge: REFRESH_TTL }, req));
-  res.cookie('resk_csrf', csrf, secure({ httpOnly: false, sameSite: 'lax', maxAge: SESSION_TTL }, req));
+  res.cookie('reska_session', access, secure({ httpOnly: true, sameSite: 'lax', maxAge: SESSION_TTL }, req));
+  res.cookie('reska_refresh', newRefresh, secure({ httpOnly: true, sameSite: 'lax', maxAge: REFRESH_TTL }, req));
+  res.cookie('reska_csrf', csrf, secure({ httpOnly: false, sameSite: 'lax', maxAge: SESSION_TTL }, req));
   return user;
 }
 
 function destroySession(req, res) {
-  const access = parseCookies(req).resk_session;
+  const access = parseCookies(req).reska_session;
   if (access) db.prepare('DELETE FROM sessions WHERE token = ?').run(access);
-  const rt = parseCookies(req).resk_refresh;
+  const rt = parseCookies(req).reska_refresh;
   if (rt) db.prepare('DELETE FROM refresh_tokens WHERE token = ?').run(rt);
-  for (const n of ['resk_session', 'resk_refresh', 'resk_csrf']) res.clearCookie(n);
+  for (const n of ['reska_session', 'reska_refresh', 'reska_csrf']) res.clearCookie(n);
 }
 
 /* ---------- middleware ---------- */
@@ -169,10 +169,10 @@ function requireAdmin(req, res, next) {
 
 function csrfProtect(req, res, next) {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
-  const session = parseCookies(req).resk_session;
+  const session = parseCookies(req).reska_session;
   if (!session) return next();
   ensureCsrfCookie(req, res);
-  const cookie = parseCookies(req).resk_csrf;
+  const cookie = parseCookies(req).reska_csrf;
   const header = req.headers['x-csrf-token'];
   if (!cookie) {
     return res.status(403).json({ error: 'Проверка не пройдена', csrfFresh: true });
@@ -188,10 +188,10 @@ function csrfProtect(req, res, next) {
  * (например, сессия осталась от старой версии сервера) — выдаём его.
  */
 function ensureCsrfCookie(req, res) {
-  if (parseCookies(req).resk_csrf) return;
-  const session = parseCookies(req).resk_session;
+  if (parseCookies(req).reska_csrf) return;
+  const session = parseCookies(req).reska_session;
   if (!session) return;
-  res.cookie('resk_csrf', hmacSign(session, 'csrf'), secure({ httpOnly: false, sameSite: 'lax', maxAge: SESSION_TTL }, req));
+  res.cookie('reska_csrf', hmacSign(session, 'csrf'), secure({ httpOnly: false, sameSite: 'lax', maxAge: SESSION_TTL }, req));
 }
 
 /* ---------- uid / id ---------- */

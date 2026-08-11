@@ -1,6 +1,6 @@
 {
-  "appId": "com.resk.app",
-  "appName": "РЕСК",
+  "appId": "com.reska.app",
+  "appName": "РЕСКА",
   "webDir": "frontend",
   "server": {
     "url": "http://192.168.0.111:3000",

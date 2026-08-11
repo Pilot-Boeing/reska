@@ -1,6 +1,6 @@
 
 /* =========================================================
-   РЕСК — клиент (SPA без фреймворков)
+   РЕСКА — клиент (SPA без фреймворков)
    Безопасность: CSRF double-submit, капча, 2FA (TOTP),
    E2EE сообщений (WebCrypto ECDH + AES-GCM), uid-ссылки.
    ========================================================= */
@@ -62,7 +62,7 @@ async function api(path, opts = {}) {
   const method = opts.method || 'GET';
   const headers = {};
   if (!(opts.body instanceof FormData) && opts.body !== undefined) headers['Content-Type'] = 'application/json';
-  const csrf = getCookie('resk_csrf');
+  const csrf = getCookie('reska_csrf');
   if (method !== 'GET' && csrf) headers['X-CSRF-Token'] = csrf;
 
   let res;
@@ -103,7 +103,7 @@ let currentSearch = '';
 
 /* ---------- E2EE (WebCrypto: ECDH P-256 + AES-GCM) ---------- */
 const E2EE = {
-  STORE: 'resk_e2ee_v1',
+  STORE: 'reska_e2ee_v1',
 
   load() {
     try { return JSON.parse(localStorage.getItem(this.STORE)) || null; } catch (e) { return null; }
@@ -335,7 +335,7 @@ function toast(msg, type) {
 function shareLink(hash, label) {
   const url = location.origin + location.pathname + '#' + hash;
   if (navigator.share) {
-    navigator.share({ title: label + ' — РЕСК', url }).catch(() => {});
+    navigator.share({ title: label + ' — РЕСКА', url }).catch(() => {});
   } else {
     navigator.clipboard.writeText(url).then(() => toast('Ссылка скопирована')).catch(() => {});
   }
@@ -1548,9 +1548,9 @@ function openNewPostModal() {
   });
 }
 const LS = {
-  notesKey() { return 'resk_notes_' + (me ? me.uid : 'anon'); },
-  favKey() { return 'resk_favs_' + (me ? me.uid : 'anon'); },
-  groupsKey() { return 'resk_groups_' + (me ? me.uid : 'anon'); },
+  notesKey() { return 'reska_notes_' + (me ? me.uid : 'anon'); },
+  favKey() { return 'reska_favs_' + (me ? me.uid : 'anon'); },
+  groupsKey() { return 'reska_groups_' + (me ? me.uid : 'anon'); },
   load(k) { try { return JSON.parse(localStorage.getItem(k)) || []; } catch (e) { return []; } },
   save(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
 };

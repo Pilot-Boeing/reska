@@ -192,12 +192,12 @@ router.get('/me', auth, (req, res) => {
   res.json({
     user: publicUser(req.user),
     totp: totpEnabled(req.userId),
-    csrf: parseCookies(req).resk_csrf || ''
+    csrf: parseCookies(req).reska_csrf || ''
   });
 });
 
 router.get('/token', auth, (req, res) => {
-  res.json({ token: parseCookies(req).resk_session || '' });
+  res.json({ token: parseCookies(req).reska_session || '' });
 });
 
 /* ---------- выход ---------- */
@@ -226,8 +226,8 @@ router.post('/password', auth, (req, res) => {
   db.prepare('UPDATE users SET password_hash = ?, password_changed_at = ? WHERE id = ?')
     .run(bcrypt.hashSync(String(next), BCRYPT_COST), new Date().toISOString(), req.userId);
   // инвалидируем остальные устройства, но сохраняем текущую сессию
-  db.prepare('DELETE FROM sessions WHERE user_id = ? AND device_id != ?').run(req.userId, parseCookies(req).resk_device || '');
-  db.prepare('DELETE FROM refresh_tokens WHERE user_id = ? AND device_id != ?').run(req.userId, parseCookies(req).resk_device || '');
+  db.prepare('DELETE FROM sessions WHERE user_id = ? AND device_id != ?').run(req.userId, parseCookies(req).reska_device || '');
+  db.prepare('DELETE FROM refresh_tokens WHERE user_id = ? AND device_id != ?').run(req.userId, parseCookies(req).reska_device || '');
   log('password_change', { req, userId: req.userId });
   res.json({ ok: true });
 });
@@ -278,7 +278,7 @@ router.post('/2fa/disable', auth, (req, res) => {
 
 /* ---------- управление сессиями ---------- */
 router.get('/sessions', auth, (req, res) => {
-  const deviceId = parseCookies(req).resk_device || '';
+  const deviceId = parseCookies(req).reska_device || '';
   const sessions = db
     .prepare('SELECT token, device_id, ip_hash, ua_hash, created_at, expires_at FROM sessions WHERE user_id = ? ORDER BY created_at DESC')
     .all(req.userId);

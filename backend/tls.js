@@ -22,7 +22,7 @@ async function ensureTls() {
   const pems = await selfsigned.generate(
     [
       { name: 'commonName', value: 'localhost' },
-      { name: 'organizationName', value: 'РЕСК' }
+      { name: 'organizationName', value: 'РЕСКА' }
     ],
     {
       days: 365,

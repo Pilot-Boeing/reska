@@ -168,7 +168,7 @@ async function start() {
 
   httpServer.listen(port, () => {
     console.log('┌─────────────────────────────────────────────┐');
-    console.log('│   РЕСК — социальная сеть + видео + чат     │');
+    console.log('│   РЕСКА — социальная сеть + видео + чат     │');
     console.log('└─────────────────────────────────────────────┘');
     console.log(`   HTTP  : http://localhost:${port}`);
     console.log(`   HTTPS : https://localhost:${httpsPort}  (самоподписанный)`);
