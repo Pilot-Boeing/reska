@@ -11,6 +11,7 @@ backups/
 # Secrets / env
 .env
 certs/
+backend/fcm-service-account.json
 
 # OS / editor
 .DS_Store

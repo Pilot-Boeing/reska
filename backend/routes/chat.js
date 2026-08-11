@@ -4,6 +4,7 @@ const { auth, publicUser, findByIdOrUid } = require('../helpers');
 const { sanitizeText } = require('../validate');
 const { randomUid } = require('../security');
 const { log } = require('../logger');
+const { notifyUser } = require('../fcm');
 
 const router = express.Router();
 
@@ -136,6 +137,18 @@ router.post('/:id/messages', auth, (req, res) => {
     io.to(`user:${req.userId}`).emit('chat:message', payload);
     io.to(`user:${otherId}`).emit('chat:message', payload);
   }
+  const preview = e2ee
+    ? '🔒 Зашифрованное сообщение'
+    : String(text).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
+  notifyUser(
+    otherId,
+    {
+      title: req.user.name,
+      body: preview,
+      data: { url: `messages/${chat.uid}` }
+    },
+    req.app.get('onlineUsers')
+  );
   log('message', { req, userId: req.userId, meta: { chatId: chat.id, e2ee } });
   res.status(201).json({ message });
 });

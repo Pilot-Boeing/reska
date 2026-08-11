@@ -7,6 +7,7 @@ const { auth, publicUser, commentsFor, findByIdOrUid } = require('../helpers');
 const { sanitizeText } = require('../validate');
 const { randomUid } = require('../security');
 const { log } = require('../logger');
+const { notifyUser, notifyFollowers } = require('../fcm');
 
 const router = express.Router();
 
@@ -55,6 +56,11 @@ router.post('/', auth, uploadPostMedia('media'), (req, res) => {
     .run(randomUid(), req.userId, text, media, mediaType);
   const row = db.prepare(`${POST_QUERY} WHERE p.id = ?`).get(Number(r.lastInsertRowid));
   log('post_create', { req, userId: req.userId, meta: { postId: row.id, hasMedia: !!media } });
+  notifyFollowers(
+    req.userId,
+    { title: req.user.name, body: 'опубликовал(а) новый пост', data: { url: 'feed' } },
+    req.app.get('onlineUsers')
+  );
   res.status(201).json({ post: postWithMeta(row, req.userId) });
 });
 
@@ -75,6 +81,14 @@ router.post('/:id/like', auth, (req, res) => {
   if (!id) return res.status(404).json({ error: 'Пост не найден' });
   db.prepare('INSERT OR IGNORE INTO post_likes (post_id, user_id) VALUES (?, ?)').run(id, req.userId);
   const n = db.prepare('SELECT COUNT(*) AS n FROM post_likes WHERE post_id = ?').get(id).n;
+  const post = db.prepare('SELECT user_id FROM posts WHERE id = ?').get(id);
+  if (post && post.user_id !== req.userId) {
+    notifyUser(
+      post.user_id,
+      { title: req.user.name, body: 'лайкнул(а) ваш пост', data: { url: 'feed' } },
+      req.app.get('onlineUsers')
+    );
+  }
   res.json({ liked: true, likes: n });
 });
 
@@ -120,6 +134,24 @@ router.post('/:id/comments', auth, (req, res) => {
        FROM comments c JOIN users u ON u.id = c.user_id WHERE c.id = ?`
     )
     .get(Number(r.lastInsertRowid));
+  const short = row.text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
+  if (post.user_id !== req.userId) {
+    notifyUser(
+      post.user_id,
+      { title: req.user.name, body: `комментарий: ${short}`, data: { url: 'feed' } },
+      req.app.get('onlineUsers')
+    );
+  }
+  if (parentId) {
+    const parent = db.prepare('SELECT user_id FROM comments WHERE id = ?').get(parentId);
+    if (parent && parent.user_id !== req.userId && parent.user_id !== post.user_id) {
+      notifyUser(
+        parent.user_id,
+        { title: req.user.name, body: `ответил(а): ${short}`, data: { url: 'feed' } },
+        req.app.get('onlineUsers')
+      );
+    }
+  }
   res.status(201).json({ comment: row });
 });
 

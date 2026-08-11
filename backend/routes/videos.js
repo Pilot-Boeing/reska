@@ -10,6 +10,7 @@ const { getClientIp } = require('../security');
 const { encryptBuffer } = require('../encryption');
 const { randomUid } = require('../security');
 const { log } = require('../logger');
+const { notifyUser, notifyFollowers } = require('../fcm');
 
 const router = express.Router();
 
@@ -84,6 +85,12 @@ router.post('/', auth, uploadVideo('video'), (req, res) => {
     .run(randomUid(), req.userId, title, sanitizeText(req.body.description, 2000), `videos/${req.file.filename}`, thumb, isClip);
   const row = db.prepare(`${VIDEO_QUERY} WHERE v.id = ?`).get(Number(r.lastInsertRowid));
   log('video_create', { req, userId: req.userId, meta: { videoId: row.id } });
+  const dest = isClip ? 'clips' : 'videos';
+  notifyFollowers(
+    req.userId,
+    { title: req.user.name, body: `новое видео: ${title}`, data: { url: dest } },
+    req.app.get('onlineUsers')
+  );
   res.status(201).json({ video: videoWithMeta(row, req.userId) });
 });
 
@@ -111,6 +118,13 @@ router.post('/:id/like', auth, (req, res) => {
   if (!v) return res.status(404).json({ error: 'Видео не найдено' });
   db.prepare('INSERT OR IGNORE INTO video_likes (video_id, user_id) VALUES (?, ?)').run(v.id, req.userId);
   const n = db.prepare('SELECT COUNT(*) AS n FROM video_likes WHERE video_id = ?').get(v.id).n;
+  if (v.user_id !== req.userId) {
+    notifyUser(
+      v.user_id,
+      { title: req.user.name, body: 'лайкнул(а) ваше видео', data: { url: `watch/${v.uid}` } },
+      req.app.get('onlineUsers')
+    );
+  }
   res.json({ liked: true, likes: n });
 });
 
@@ -150,6 +164,24 @@ router.post('/:id/comments', auth, (req, res) => {
        FROM comments c JOIN users u ON u.id = c.user_id WHERE c.id = ?`
     )
     .get(Number(r.lastInsertRowid));
+  const short = row.text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
+  if (video.user_id !== req.userId) {
+    notifyUser(
+      video.user_id,
+      { title: req.user.name, body: `комментарий: ${short}`, data: { url: `watch/${video.uid}` } },
+      req.app.get('onlineUsers')
+    );
+  }
+  if (parentId) {
+    const parent = db.prepare('SELECT user_id FROM comments WHERE id = ?').get(parentId);
+    if (parent && parent.user_id !== req.userId && parent.user_id !== video.user_id) {
+      notifyUser(
+        parent.user_id,
+        { title: req.user.name, body: `ответил(а): ${short}`, data: { url: `watch/${video.uid}` } },
+        req.app.get('onlineUsers')
+      );
+    }
+  }
   res.status(201).json({ comment: row });
 });
 

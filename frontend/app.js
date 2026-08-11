@@ -162,6 +162,75 @@ async function otherPubKey(uid) {
   }
 }
 
+/* ---------- Push-уведомления (FCM через Capacitor) ---------- */
+const PUSH_STORE = 'reska_push_token';
+let pushListenersBound = false;
+
+function capPush() {
+  return !!(window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications);
+}
+
+function pushToken() {
+  try { return localStorage.getItem(PUSH_STORE) || null; } catch (e) { return null; }
+}
+
+async function registerPushToken(token) {
+  if (!token) return;
+  try { await api('/push/token', { method: 'POST', body: { token, platform: 'android' } }); } catch (e) {}
+}
+
+async function unregisterPushToken() {
+  const token = pushToken();
+  if (!token) return;
+  try { await api('/push/token', { method: 'DELETE', body: { token }, silent: true }); } catch (e) {}
+}
+
+async function initPush() {
+  if (!capPush()) return;
+  try {
+    const P = window.Capacitor.Plugins.PushNotifications;
+
+    if (!pushListenersBound) {
+      pushListenersBound = true;
+      P.addListener('registration', (data) => {
+        if (data && data.value) {
+          try { localStorage.setItem(PUSH_STORE, data.value); } catch (e) {}
+          registerPushToken(data.value);
+        }
+      });
+      P.addListener('registrationError', (err) => {
+        console.warn('Push registration error:', err && err.message);
+      });
+      P.addListener('notificationReceived', (n) => {
+        const title = n && n.title ? n.title : '';
+        const body = n && n.body ? n.body : '';
+        if (title && body) toast(`${title}: ${body}`);
+      });
+      P.addListener('notificationActionPerformed', (d) => {
+        const url = d && d.notification && d.notification.data && d.notification.data.url;
+        if (url) go('/' + String(url).replace(/^\/+/, ''));
+      });
+    }
+
+    let granted = false;
+    const perm = await P.checkPermissions();
+    if (perm && perm.receive === 'granted') granted = true;
+    else {
+      const req = await P.requestPermissions();
+      granted = req && req.receive === 'granted';
+    }
+    if (!granted) return;
+
+    try { await P.createChannel({ id: 'reska', name: 'Уведомления РЕСКА', importance: 5, vibration: true }); } catch (e) {}
+    await P.register();
+    const prev = pushToken();
+    if (prev) registerPushToken(prev);
+  } catch (e) {
+    console.warn('Push init error:', e.message);
+  }
+}
+
+
 /* ---------- роутер ---------- */
 function parseHash() {
   const h = location.hash.replace(/^#\/?/, '');
@@ -249,6 +318,7 @@ async function afterLogin() {
   showApp();
   updateNavUser();
   E2EE.pushPubKey(me.uid);
+  initPush();
   connectSocket();
   render();
 }
@@ -1930,6 +2000,7 @@ function wireGlobal() {
 }
 
 async function logout() {
+  unregisterPushToken();
   try { await api('/auth/logout', { method: 'POST', silent: true }); } catch (e) {}
   if (socket) { socket.disconnect(); socket = null; }
   me = null; activeChatUid = null; chatsCache = [];
