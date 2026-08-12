@@ -1044,10 +1044,11 @@ async function viewMessages(openChatUid) {
   const view = $('#view');
   view.innerHTML = `
     <div class="messenger">
-      <aside class="chat-sidebar card" id="chat-sidebar">
-        <button class="btn btn-primary btn-block" data-action="new-chat" style="margin-bottom:12px">＋ Новый чат</button>
-        <div id="chat-list"></div>
-      </aside>
+       <aside class="chat-sidebar card" id="chat-sidebar">
+         <button class="btn btn-primary btn-block" data-action="new-chat" style="margin-bottom:12px">＋ Новый чат</button>
+         <button class="btn btn-block self-chat-btn" data-action="self-chat" style="margin-bottom:12px">📝 Сообщения себе</button>
+         <div id="chat-list"></div>
+       </aside>
       <section class="chat-window card" id="chat-window">
         <div class="chat-placeholder">Выберите чат или создайте новый</div>
       </section>
@@ -1059,6 +1060,7 @@ async function viewMessages(openChatUid) {
     if (item) go('/messages/' + item.dataset.chatUid);
   });
   $('[data-action="new-chat"]').addEventListener('click', openNewChatModal);
+  $('[data-action="self-chat"]').addEventListener('click', startSelfChat);
   if (openChatUid) await openChat(openChatUid);
 }
 
@@ -1071,21 +1073,33 @@ function renderChatList() {
     return;
   }
   chatsCache.forEach((c) => {
+    const isSelf = c.other && c.other.id === me.id;
+    const name = isSelf ? '📝 Сообщения себе' : c.other.name;
+    const last = isSelf && !c.last_text ? 'Заметки, избранное, черновики' : (c.last_text || 'Нет сообщений');
     const el = document.createElement('div');
-    el.className = 'chat-item' + (c.uid === activeChatUid ? ' active' : '');
+    el.className = 'chat-item' + (c.uid === activeChatUid ? ' active' : '') + (isSelf ? ' self' : '');
     el.dataset.chatUid = c.uid;
     el.innerHTML = `
       <img class="avatar sm" src="${mediaUrl(c.other.avatar)}" alt="">
       <div class="chat-item-info">
         <div class="chat-item-name">
-          <span>${esc(c.other.name)}</span>
+          <span>${esc(name)}</span>
           <span class="muted" style="font-weight:400;font-size:11px">${c.last_at ? timeAgo(c.last_at) : ''}</span>
         </div>
-        <div class="chat-item-last">${esc(c.last_text || 'Нет сообщений')}</div>
+        <div class="chat-item-last">${esc(last)}</div>
       </div>
       ${c.unread ? `<span class="badge">${c.unread}</span>` : ''}`;
     list.appendChild(el);
   });
+}
+
+async function startSelfChat() {
+  try {
+    const res = await api('/chats/self', { method: 'POST' });
+    go('/messages/' + res.uid);
+  } catch (err) {
+    toast(err.message, 'error');
+  }
 }
 
 async function refreshChatList() {
@@ -1118,9 +1132,13 @@ async function openChat(chatUid) {
   const win = $('#chat-window');
   win.innerHTML = `
     <div class="chat-head">
-      ${chat ? `<a href="#/profile/${esc(chat.other.uid)}"><img class="avatar sm" src="${mediaUrl(chat.other.avatar)}" alt=""></a>
+      ${chat ? (chat.other.id === me.id
+        ? `<img class="avatar sm" src="${mediaUrl(chat.other.avatar)}" alt="">
+      <b>📝 Сообщения себе</b>
+      <span class="muted">заметки · избранное · черновики</span>`
+        : `<a href="#/profile/${esc(chat.other.uid)}"><img class="avatar sm" src="${mediaUrl(chat.other.avatar)}" alt=""></a>
       <b>${esc(chat.other.name)}</b>
-      <span class="e2ee-tag" title="Сообщения шифруются на вашем устройстве (E2EE)">🔒 E2EE</span>` : ''}
+      <span class="e2ee-tag" title="Сообщения шифруются на вашем устройстве (E2EE)">🔒 E2EE</span>`) : ''}
     </div>
     <div class="chat-messages" id="chat-messages"></div>
     <form class="chat-input" id="chat-input">

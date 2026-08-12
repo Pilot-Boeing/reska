@@ -58,12 +58,22 @@ router.post('/', auth, (req, res) => {
   const existing = db.prepare('SELECT id, uid FROM chats WHERE user_a = ? AND user_b = ?').get(a, b);
   if (existing) return res.json({ chatId: existing.id, uid: existing.uid });
 
-  const r = db.prepare('INSERT INTO chats (uid, user_a, user_b) VALUES (?, ?, ?)').run(randomUid(), a, b);
-  const row = db.prepare('SELECT uid FROM chats WHERE id = ?').get(Number(r.lastInsertRowid));
-  res.status(201).json({ chatId: Number(r.lastInsertRowid), uid: row.uid });
-});
+    const r = db.prepare('INSERT INTO chats (uid, user_a, user_b) VALUES (?, ?, ?)').run(randomUid(), a, b);
+    const row = db.prepare('SELECT uid FROM chats WHERE id = ?').get(Number(r.lastInsertRowid));
+    res.status(201).json({ chatId: Number(r.lastInsertRowid), uid: row.uid });
+  });
 
-const MESSAGE_QUERY = `
+  /* ---------- чат с самим собой (заметки/избранное) ---------- */
+  router.post('/self', auth, (req, res) => {
+    const existing = db.prepare('SELECT id, uid FROM chats WHERE user_a = ? AND user_b = ?').get(req.userId, req.userId);
+    if (existing) return res.json({ chatId: existing.id, uid: existing.uid });
+    const r = db.prepare('INSERT INTO chats (uid, user_a, user_b) VALUES (?, ?, ?)').run(randomUid(), req.userId, req.userId);
+    const row = db.prepare('SELECT uid FROM chats WHERE id = ?').get(Number(r.lastInsertRowid));
+    log('self_chat_create', { req, userId: req.userId });
+    res.status(201).json({ chatId: Number(r.lastInsertRowid), uid: row.uid });
+  });
+
+  const MESSAGE_QUERY = `
   SELECT m.id, m.chat_id, m.sender_id, m.text, m.e2ee, m.read, m.edited, m.created_at,
          u.username, u.name, u.avatar
   FROM messages m JOIN users u ON u.id = m.sender_id
