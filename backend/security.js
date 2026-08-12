@@ -200,10 +200,19 @@ function totpUri(secret, username) {
 function captchaGenerate() {
   const a = 1 + crypto.randomInt(9);
   const b = 1 + crypto.randomInt(9);
-  const op = crypto.randomInt(2) ? '+' : '−';
-  const answer = op === '+' ? a + b : a - b;
+  const plus = crypto.randomInt(2) === 1;
+  let text, answer;
+  if (plus) {
+    text = `${a} + ${b}`;
+    answer = a + b;
+  } else {
+    const big = Math.max(a, b);
+    const small = Math.min(a, b);
+    text = `${big} − ${small}`;
+    answer = big - small;
+  }
   const token = signToken({ c: answer, kind: 'captcha' }, 600);
-  return { token, text: `${a} ${op} ${b}` };
+  return { token, text };
 }
 
 function captchaVerify(token, answer) {
