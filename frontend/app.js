@@ -2010,6 +2010,10 @@ function wireGlobal() {
   });
 
   $('#menu-toggle').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
+  $('#sidebar-backdrop').addEventListener('click', () => $('#sidebar').classList.remove('open'));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') $('#sidebar').classList.remove('open');
+  });
   $('#sidebar').addEventListener('click', (e) => {
     if (e.target.classList.contains('slink') && window.innerWidth <= 860) $('#sidebar').classList.remove('open');
   });

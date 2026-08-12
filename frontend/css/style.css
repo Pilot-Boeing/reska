@@ -224,6 +224,13 @@ textarea { resize: vertical; }
   padding: 14px 10px;
   transition: transform 0.25s;
 }
+.sidebar-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 99;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.25s;
+}
 .sidebar-top { flex: 1 1 auto; overflow-y: auto; }
 .sidebar-mid { padding-top: 8px; }
 .sidebar-bottom { padding-top: 12px; border-top: 1px solid var(--border); }
@@ -758,6 +765,7 @@ textarea { resize: vertical; }
   :root { --sidebar-w: 0px; }
   .sidebar { transform: translateX(-100%); width: 240px; }
   .sidebar.open { transform: translateX(0); box-shadow: var(--shadow); }
+  .sidebar.open ~ .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   .main { margin-left: 0; }
   .menu-toggle { display: block !important; }
   .mobilenav {
