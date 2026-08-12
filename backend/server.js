@@ -121,6 +121,7 @@ app.use('/api/videos', require('./routes/videos'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/chats', require('./routes/chat'));
 app.use('/api/push', require('./routes/push'));
+app.use('/api/library', require('./routes/library'));
 app.use('/api/search', require('./routes/search'));
 
 app.get('/api/health', (req, res) =>

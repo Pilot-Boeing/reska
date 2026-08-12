@@ -210,6 +210,26 @@ CREATE TABLE IF NOT EXISTS logs (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS notes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  uid TEXT UNIQUE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  body TEXT DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS groups (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  uid TEXT UNIQUE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_posts_user ON posts(user_id);
 CREATE INDEX IF NOT EXISTS idx_videos_user ON videos(user_id);
 CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id);
@@ -245,6 +265,7 @@ function migrate() {
   addColumn('users', 'incognito', 'INTEGER NOT NULL DEFAULT 0');
   addColumn('users', 'e2ee_pub', 'TEXT DEFAULT \'\'');
   addColumn('users', 'e2ee_ver', 'INTEGER NOT NULL DEFAULT 0');
+  addColumn('users', 'phone', 'TEXT DEFAULT \'\'');
   addColumn('posts', 'uid', 'TEXT');
   addColumn('videos', 'uid', 'TEXT');
   addColumn('comments', 'uid', 'TEXT');

@@ -14,6 +14,7 @@ function matchText(haystacks, q) {
 }
 
 const PUB_RE = /^[A-Za-z0-9_=+\/-]{40,2048}$/;
+const PHONE_RE = /^[+\d()\-\s]{5,30}$/;
 
 router.get('/', auth, (req, res) => {
   const q = String(req.query.q || '').trim().slice(0, 60);
@@ -63,10 +64,12 @@ router.put('/:id', auth, (req, res) => {
   const name = sanitizeText(req.body.name, 60);
   const bio = sanitizeText(req.body.bio, 200);
   const status = sanitizeText(req.body.status, 60);
+  const phone = req.body.phone ? String(req.body.phone).trim() : '';
   if (!validName(name)) return res.status(400).json({ error: 'Имя: от 2 до 60 символов' });
+  if (phone && !PHONE_RE.test(phone)) return res.status(400).json({ error: 'Неверный формат телефона' });
   const incognito = req.body.incognito === true || req.body.incognito === 1 || req.body.incognito === '1' ? 1 : 0;
-  db.prepare('UPDATE users SET name = ?, bio = ?, status = ?, incognito = ? WHERE id = ?')
-    .run(name, bio, status, incognito, user.id);
+  db.prepare('UPDATE users SET name = ?, bio = ?, status = ?, phone = ?, incognito = ? WHERE id = ?')
+    .run(name, bio, status, phone, incognito, user.id);
   const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
   res.json({ user: publicUser(updated) });
 });

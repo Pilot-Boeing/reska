@@ -14,6 +14,14 @@ const esc = (s) =>
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
+/* Хэштеги: #слово → ссылка на поиск (#/search?q=слово) */
+function linkifyTags(text) {
+  return esc(text).replace(
+    /(^|\s)#([\p{L}\p{N}_]+)/gu,
+    '$1<a class="tag" href="#/search?q=$2">#$2</a>'
+  );
+}
+
 const DEFAULT_AVATAR =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a855f7'/%3E%3Cstop offset='1' stop-color='%237c3aed'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='200' height='200' rx='40' fill='url(%23g)'/%3E%3Ctext x='100' y='120' font-family='Arial' font-size='80' font-weight='bold' fill='white' text-anchor='middle'%3E?%3C/text%3E%3C/svg%3E";
 
@@ -451,7 +459,7 @@ function buildPost(post) {
   authorEl.textContent = post.name;
   $('.post-time', node).textContent = timeAgo(post.created_at);
   const textEl = $('.post-text', node);
-  textEl.textContent = post.text;
+  textEl.innerHTML = linkifyTags(post.text);
   if (post.text && post.text.length > 400) {
     textEl.classList.add('collapsed');
     const btn = document.createElement('button');
@@ -633,7 +641,7 @@ function buildVideoCard(v) {
   $('img', node).src = mediaUrl(v.thumb);
   $('img', node).alt = v.title;
   $('.views-badge', node).textContent = '👁 ' + fmtViews(v.views);
-  $('.video-title', node).textContent = v.title;
+  $('.video-title', node).innerHTML = linkifyTags(v.title);
   $('.video-author', node).textContent = `${v.name} · ${fmtViews(v.views)} просмотров`;
   if (v.is_clip) $('.clip-badge', node).classList.remove('hidden');
   card.addEventListener('click', () => openVideoOverlay(v.id));
@@ -873,7 +881,7 @@ function buildClipCard(v) {
   $('.clip-author-block', node).href = '#/profile/' + v.author_uid;
   $('.clip-like-count', node).textContent = v.likes || '0';
   $('.clip-comment-count', node).textContent = v.comments != null ? v.comments : '0';
-  $('.clip-title', node).textContent = v.title || '';
+  $('.clip-title', node).innerHTML = linkifyTags(v.title || '');
   const soundEl = $('.clip-sound-text', node);
   soundEl.textContent = '♫ ' + (v.title || 'Оригинальный звук') + '     ♫ ' + (v.title || 'Оригинальный звук') + '     ';
 
@@ -929,23 +937,23 @@ async function openVideoOverlay(id) {
     <div class="modal watch" style="max-width:820px;margin:30px auto;width:100%">
       <button class="close-x">✕</button>
       <video class="player" src="${esc(mediaUrl(v.file))}" poster="${esc(mediaUrl(v.thumb))}" controls autoplay></video>
-      <h1 class="watch-title">${esc(v.title)}</h1>
-      <div class="watch-meta">
-        <a href="#/profile/${esc(v.author_uid || v.user_id)}">
-          <img class="avatar sm" src="${mediaUrl(v.avatar)}" alt="">
-          <b>${esc(v.name)}</b>
-        </a>
-        <span class="video-stats">👁 ${fmtViews(v.views)}</span>
-        <span class="video-stats">${timeAgo(v.created_at)}</span>
-        <div class="watch-actions">
-          <button class="pact ${v.liked ? 'liked' : ''}" data-action="vlike">
-            <span class="pact-ico">${v.liked ? '❤️' : '🤍'}</span><span class="like-count">${v.likes || ''}</span>
-          </button>
-          <button class="pact" data-action="share"><span class="pact-ico">🔗</span><span>Поделиться</span></button>
-          ${v.user_id === me.id || me.role === 'admin' ? `<button class="pact pact-del" data-action="vdel"><span class="pact-ico">🗑</span><span>Удалить</span></button>` : ''}
-        </div>
-      </div>
-      ${v.description ? `<div class="watch-desc card">${esc(v.description)}</div>` : ''}
+       <h1 class="watch-title">${linkifyTags(v.title)}</h1>
+       <div class="watch-meta">
+         <a href="#/profile/${esc(v.author_uid || v.user_id)}">
+           <img class="avatar sm" src="${mediaUrl(v.avatar)}" alt="">
+           <b>${esc(v.name)}</b>
+         </a>
+         <span class="video-stats">👁 ${fmtViews(v.views)}</span>
+         <span class="video-stats">${timeAgo(v.created_at)}</span>
+         <div class="watch-actions">
+           <button class="pact ${v.liked ? 'liked' : ''}" data-action="vlike">
+             <span class="pact-ico">${v.liked ? '❤️' : '🤍'}</span><span class="like-count">${v.likes || ''}</span>
+           </button>
+           <button class="pact" data-action="share"><span class="pact-ico">🔗</span><span>Поделиться</span></button>
+           ${v.user_id === me.id || me.role === 'admin' ? `<button class="pact pact-del" data-action="vdel"><span class="pact-ico">🗑</span><span>Удалить</span></button>` : ''}
+         </div>
+       </div>
+       ${v.description ? `<div class="watch-desc card">${linkifyTags(v.description)}</div>` : ''}
       <div class="comments-block card">
         <h3>Комментарии</h3>
         <form class="comment-form" id="vcomment-form">
@@ -1474,6 +1482,7 @@ async function viewProfile(id) {
   const u = data.user;
   const isMe = u.id === me.id;
   const view = $('#view');
+  const phoneHref = u.phone ? 'tel:' + u.phone.replace(/[^\+0-9]/g, '') : '';
   view.innerHTML = `
     <div class="profile">
       <div class="profile-head card">
@@ -1484,6 +1493,7 @@ async function viewProfile(id) {
           </div>
           <div class="profile-status">${u.online ? '<span class="online-dot"></span> онлайн' : ''} ${esc(u.status || '')}</div>
           <p class="profile-bio">${esc(u.bio || '')}</p>
+          ${u.phone ? `<p class="profile-bio"><a class="phone-link" href="${esc(phoneHref)}">📞 ${esc(u.phone)}</a></p>` : ''}
           <div class="profile-stats">
             <div class="stat"><b>${data.stats.posts}</b><span>Постов</span></div>
             <div class="stat"><b>${data.stats.videos}</b><span>Видео</span></div>
@@ -1572,8 +1582,9 @@ function viewEditProfile() {
           <input type="file" accept="image/*" id="edit-avatar-file" class="hidden">
         </div>
       </div>
-      <form id="profile-form">
+       <form id="profile-form">
         <div class="form-row"><label>Имя *</label><input name="name" required maxlength="60" value="${esc(me.name)}"></div>
+        <div class="form-row"><label>Телефон</label><input name="phone" maxlength="30" inputmode="tel" value="${esc(me.phone || '')}" placeholder="+7 999 123-45-67"></div>
         <div class="form-row"><label>Статус</label><input name="status" maxlength="60" value="${esc(me.status || '')}" placeholder="Например: на сборах"></div>
         <div class="form-row"><label>О себе</label><textarea name="bio" maxlength="200" placeholder="Расскажите о себе...">${esc(me.bio || '')}</textarea></div>
         <div class="form-row checkbox-row">
@@ -1606,6 +1617,7 @@ function viewEditProfile() {
         method: 'PUT',
         body: {
           name: fd.get('name'),
+          phone: fd.get('phone'),
           status: fd.get('status'),
           bio: fd.get('bio'),
           incognito: fd.get('incognito') ? true : false
@@ -1824,11 +1836,9 @@ const LS = {
   save(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
 };
 function luid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
-
 /* ---------- КОНСПЕКТЫ ---------- */
-function viewNotes() {
+async function viewNotes() {
   const view = $('#view');
-  const notes = LS.load(LS.notesKey());
   view.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
       <div class="page-title" style="margin:0">📝 Конспекты</div>
@@ -1837,9 +1847,12 @@ function viewNotes() {
     <div class="notes-grid" id="notes-grid"></div>`;
   $('#note-add').addEventListener('click', () => noteEditor(null));
   const grid = $('#notes-grid');
+  let notes = [];
+  try { notes = (await api('/library/notes')).notes; } catch (e) { toast(e.message, 'error'); }
   if (!notes.length) { grid.innerHTML = `<div class="empty">Пока пусто. Создайте первый конспект!</div>`; return; }
-  notes.sort((a, b) => b.updated_at - a.updated_at).forEach((n) => grid.appendChild(noteCard(n)));
+  notes.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)).forEach((n) => grid.appendChild(noteCard(n)));
 }
+
 function noteCard(n) {
   const el = document.createElement('div');
   el.className = 'note-card card';
@@ -1852,10 +1865,10 @@ function noteCard(n) {
       <button class="btn btn-ghost btn-sm" data-act="del">🗑</button>
     </div>`;
   el.querySelector('[data-act="edit"]').addEventListener('click', () => noteEditor(n));
-  el.querySelector('[data-act="del"]').addEventListener('click', () => {
+  el.querySelector('[data-act="del"]').addEventListener('click', async () => {
     if (!confirm('Удалить конспект?')) return;
-    LS.save(LS.notesKey(), LS.load(LS.notesKey()).filter((x) => x.id !== n.id));
-    viewNotes(); toast('Конспект удалён');
+    try { await api('/library/notes/' + n.id, { method: 'DELETE' }); viewNotes(); toast('Конспект удалён'); }
+    catch (err) { toast(err.message, 'error'); }
   });
   return el;
 }
@@ -1875,18 +1888,14 @@ function noteEditor(n) {
     </div>`;
   $('#modal-root').appendChild(modal);
   modal.addEventListener('click', (e) => { if (e.target === modal || e.target.classList.contains('close-x')) modal.remove(); });
-  $('#note-form', modal).addEventListener('submit', (e) => {
+  $('#note-form', modal).addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-    let notes = LS.load(LS.notesKey());
-    if (n) {
-      const idx = notes.findIndex((x) => x.id === n.id);
-      if (idx >= 0) notes[idx] = { ...notes[idx], title: fd.get('title'), body: fd.get('body'), updated_at: Date.now() };
-    } else {
-      notes.unshift({ id: luid(), title: fd.get('title'), body: fd.get('body'), updated_at: Date.now() });
-    }
-    LS.save(LS.notesKey(), notes);
-    modal.remove(); viewNotes(); toast('Конспект сохранён');
+    try {
+      if (n) await api('/library/notes/' + n.id, { method: 'PUT', body: { title: fd.get('title'), body: fd.get('body') } });
+      else await api('/library/notes', { method: 'POST', body: { title: fd.get('title'), body: fd.get('body') } });
+      modal.remove(); viewNotes(); toast('Конспект сохранён');
+    } catch (err) { toast(err.message, 'error'); }
   });
 }
 /* ---------- ИЗБРАННОЕ ---------- */
@@ -1929,9 +1938,8 @@ function favCard(f) {
   return el;
 }
 /* ---------- ГРУППЫ ---------- */
-function viewGroups() {
+async function viewGroups() {
   const view = $('#view');
-  const groups = LS.load(LS.groupsKey());
   view.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
       <div class="page-title" style="margin:0">👥 Группы</div>
@@ -1940,8 +1948,10 @@ function viewGroups() {
     <div class="notes-grid" id="groups-grid"></div>`;
   $('#group-add').addEventListener('click', () => groupEditor(null));
   const grid = $('#groups-grid');
+  let groups = [];
+  try { groups = (await api('/library/groups')).groups; } catch (e) { toast(e.message, 'error'); }
   if (!groups.length) { grid.innerHTML = `<div class="empty">Пока нет групп. Создайте первую!</div>`; return; }
-  groups.sort((a, b) => b.updated_at - a.updated_at).forEach((g) => grid.appendChild(groupCard(g)));
+  groups.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)).forEach((g) => grid.appendChild(groupCard(g)));
 }
 
 function groupCard(g) {
@@ -1956,10 +1966,10 @@ function groupCard(g) {
       <button class="btn btn-ghost btn-sm" data-act="del">🗑</button>
     </div>`;
   el.querySelector('[data-act="edit"]').addEventListener('click', () => groupEditor(g));
-  el.querySelector('[data-act="del"]').addEventListener('click', () => {
+  el.querySelector('[data-act="del"]').addEventListener('click', async () => {
     if (!confirm('Удалить группу?')) return;
-    LS.save(LS.groupsKey(), LS.load(LS.groupsKey()).filter((x) => x.id !== g.id));
-    viewGroups(); toast('Группа удалена');
+    try { await api('/library/groups/' + g.id, { method: 'DELETE' }); viewGroups(); toast('Группа удалена'); }
+    catch (err) { toast(err.message, 'error'); }
   });
   return el;
 }
@@ -1979,18 +1989,14 @@ function groupEditor(g) {
     </div>`;
   $('#modal-root').appendChild(modal);
   modal.addEventListener('click', (e) => { if (e.target === modal || e.target.classList.contains('close-x')) modal.remove(); });
-  $('#group-form', modal).addEventListener('submit', (e) => {
+  $('#group-form', modal).addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-    let groups = LS.load(LS.groupsKey());
-    if (g) {
-      const idx = groups.findIndex((x) => x.id === g.id);
-      if (idx >= 0) groups[idx] = { ...groups[idx], name: fd.get('name'), description: fd.get('description'), updated_at: Date.now() };
-    } else {
-      groups.unshift({ id: luid(), name: fd.get('name'), description: fd.get('description'), updated_at: Date.now() });
-    }
-    LS.save(LS.groupsKey(), groups);
-    modal.remove(); viewGroups(); toast('Группа сохранена');
+    try {
+      if (g) await api('/library/groups/' + g.id, { method: 'PUT', body: { name: fd.get('name'), description: fd.get('description') } });
+      else await api('/library/groups', { method: 'POST', body: { name: fd.get('name'), description: fd.get('description') } });
+      modal.remove(); viewGroups(); toast('Группа сохранена');
+    } catch (err) { toast(err.message, 'error'); }
   });
 }
 function wireGlobal() {

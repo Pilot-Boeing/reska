@@ -741,17 +741,23 @@ textarea { resize: vertical; }
 .user-row > div { flex: 1; min-width: 0; }
 
 /* =========================================================
-   КОНСПЕКТЫ / ИЗБРАННОЕ / ГРУППЫ (localStorage)
+   КОНСПЕКТЫ / ИЗБРАННОЕ / ГРУППЫ
    ========================================================= */
 .notes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
 .note-card { padding: 18px; display: flex; flex-direction: column; gap: 8px; }
 .note-card h3 { font-size: 16px; }
-.note-card p { font-size: 14px; line-height: 1.5; color: var(--muted); flex: 1; }
+.note-card p { font-size: 14px; line-height: 1.5; color: var(--muted); flex: 1; word-break: break-word; }
 .note-card .note-date { font-size: 12px; }
 .note-card .note-actions { display: flex; gap: 6px; margin-top: 6px; }
 .fav-post { padding: 14px; margin-bottom: 10px; }
 .fav-post-text { font-size: 14px; line-height: 1.5; }
 .fav-post-meta { font-size: 12px; margin-top: 6px; }
+
+/* ---------- хэштеги и телефон ---------- */
+.tag { color: var(--primary); font-weight: 600; text-decoration: none; }
+.tag:hover { text-decoration: underline; }
+.phone-link { color: var(--primary); text-decoration: none; font-weight: 600; }
+.phone-link:hover { text-decoration: underline; }
 
 /* =========================================================
    АНИМАЦИИ
@@ -806,6 +812,19 @@ textarea { resize: vertical; }
   .view { padding: 16px; padding-bottom: 96px; }
   .topbar { padding: 0 14px; }
   .feed { max-width: 100%; }
+  .page-title { font-size: 19px; margin-bottom: 14px; }
+  .post { border-radius: 14px; }
+  .post-head { padding: 12px 14px 0; }
+  .post-text { padding: 10px 14px 0; font-size: 14px; line-height: 1.5; }
+  .post-actions { padding: 10px 14px; }
+  .profile-head { padding: 18px 16px; gap: 14px; }
+  .profile-name { font-size: 20px; }
+  .form-card { padding: 18px; }
+  .modal { padding: 20px; }
+  .watch-title { font-size: 18px; }
+  .note-card { padding: 14px; }
+  .note-card h3 { font-size: 15px; }
+  .video-title { font-size: 13px; }
   .video-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
   .messenger { flex-direction: column; height: auto; }
   .chat-sidebar { width: 100%; max-height: 240px; }

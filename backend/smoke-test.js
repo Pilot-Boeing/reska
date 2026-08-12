@@ -282,6 +282,42 @@ async function main() {
   r = await api('GET', '/api/auth/me', { jar: jarA });
   check('сессия после logout-all закрыта', r.res.status === 401);
 
+  /* 16. телефон в профиле */
+  r = await api('PUT', `/api/users/${userB.uid}`, { body: { name: 'B Smoke', phone: '+7 999 123-45-67' }, jar: jarB });
+  check('обновление телефона', r.res.status === 200 && r.data.user.phone === '+7 999 123-45-67', String(r.res.status));
+  r = await api('PUT', `/api/users/${userB.uid}`, { body: { name: 'B Smoke', phone: 'bad' }, jar: jarB });
+  check('плохой телефон отклонён', r.res.status === 400);
+
+  /* 17. библиотека: конспекты и группы (серверное хранение) */
+  r = await api('GET', '/api/library/notes', { jar: jarB });
+  check('список конспектов пуст', r.res.status === 200 && Array.isArray(r.data.notes));
+  r = await api('POST', '/api/library/notes', { body: { title: 'Тактика', body: 'заметка #тест' }, jar: jarB });
+  check('создание конспекта', r.res.status === 201 && r.data.note.title === 'Тактика', String(r.res.status));
+  const noteId = r.data.note.id;
+  r = await api('PUT', `/api/library/notes/${noteId}`, { body: { title: 'Тактика 2', body: 'x' }, jar: jarB });
+  check('обновление конспекта', r.res.status === 200 && r.data.note.title === 'Тактика 2');
+  r = await api('GET', '/api/library/notes', { jar: jarB });
+  check('конспект в списке', r.data.notes.some((n) => n.id === noteId));
+  r = await api('DELETE', `/api/library/notes/${noteId}`, { jar: jarB });
+  check('удаление конспекта', r.res.status === 200);
+  const jarA2 = {};
+  r = await api('POST', '/api/auth/login', { body: { username: 'u_admin', password: 'newpass99' }, jar: jarA2 });
+  merge(jarA2, jarFrom(r.res));
+  r = await api('POST', '/api/library/notes', { body: { title: 'note-admin' }, jar: jarA2 });
+  const noteAdmin = r.data.note;
+  r = await api('PUT', `/api/library/notes/${noteAdmin.id}`, { body: { title: 'hack' }, jar: jarB });
+  check('чужой конспект нельзя редактировать', r.res.status === 403, String(r.res.status));
+  r = await api('DELETE', `/api/library/notes/${noteAdmin.id}`, { jar: jarB });
+  check('чужой конспект нельзя удалять', r.res.status === 403, String(r.res.status));
+
+  r = await api('POST', '/api/library/groups', { body: { name: 'Группа А', description: 'описание' }, jar: jarB });
+  check('создание группы', r.res.status === 201 && r.data.group.name === 'Группа А', String(r.res.status));
+  const groupId = r.data.group.id;
+  r = await api('PUT', `/api/library/groups/${groupId}`, { body: { name: 'Группа Б' }, jar: jarB });
+  check('обновление группы', r.res.status === 200 && r.data.group.name === 'Группа Б');
+  r = await api('DELETE', `/api/library/groups/${groupId}`, { jar: jarB });
+  check('удаление группы', r.res.status === 200);
+
   server.kill();
   await new Promise((res) => server.once('exit', res));
   for (let i = 0; i < 5; i++) {
