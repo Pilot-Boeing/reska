@@ -231,6 +231,18 @@ function migrate() {
   addColumn('sessions', 'expires_at', 'TEXT');
 
   for (const t of ['users', 'posts', 'videos', 'comments', 'chats']) ensureUid(t);
+
+  // нормализация логинов в нижний регистр (раньше логин был чувствителен к регистру)
+  try {
+    const rows = db.prepare('SELECT id, username FROM users').all();
+    for (const r of rows) {
+      const low = String(r.username).toLowerCase();
+      if (low !== r.username) {
+        const collision = db.prepare('SELECT 1 FROM users WHERE lower(username) = ? AND id != ?').get(low, r.id);
+        if (!collision) db.prepare('UPDATE users SET username = ? WHERE id = ?').run(low, r.id);
+      }
+    }
+  } catch (e) {}
 }
 
 migrate();

@@ -94,7 +94,7 @@ router.post('/register', (req, res) => {
     : null;
   if (bad) return res.status(400).json({ error: bad, needCaptcha: true });
 
-  const exists = db.prepare('SELECT id FROM users WHERE username = ?').get(String(username));
+  const exists = db.prepare('SELECT id FROM users WHERE lower(username) = lower(?)').get(String(username));
   if (exists) return res.status(409).json({ error: 'Логин уже занят' });
 
   const hash = bcrypt.hashSync(String(password), BCRYPT_COST);
@@ -102,7 +102,7 @@ router.post('/register', (req, res) => {
   const role = userCount === 0 ? 'admin' : 'user';
   const r = db
     .prepare('INSERT INTO users (uid, username, password_hash, name, role) VALUES (?, ?, ?, ?, ?)')
-    .run(randomUid(), String(username), hash, String(name), role);
+    .run(randomUid(), String(username).toLowerCase(), hash, String(name), role);
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(r.lastInsertRowid));
   createSession(req, res, user.id);
   log('register', { req, userId: user.id, meta: { username: user.username, role } });
@@ -112,7 +112,7 @@ router.post('/register', (req, res) => {
 /* ---------- вход: 1-й шаг (пароль) ---------- */
 router.post('/login', (req, res) => {
   const { username, password } = req.body || {};
-  const key = bruteKey(getClientIp(req), username);
+  const key = bruteKey(getClientIp(req), String(username || '').toLowerCase());
 
   const check = bruteCheck(key);
   if (!check.ok) {
@@ -129,7 +129,7 @@ router.post('/login', (req, res) => {
     return res.status(400).json({ error: 'Введите ответ на капчу', needCaptcha: true });
   }
 
-  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(String(username || ''));
+  const user = db.prepare('SELECT * FROM users WHERE lower(username) = lower(?)').get(String(username || ''));
   if (!user || !bcrypt.compareSync(String(password || ''), user.password_hash)) {
     bruteFail(key);
     log('login_fail', { req, meta: { username: String(username || '') } });
