@@ -171,14 +171,23 @@ function csrfProtect(req, res, next) {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
   const session = parseCookies(req).reska_session;
   if (!session) return next();
+  const live = db
+    .prepare('SELECT 1 FROM sessions WHERE token = ? AND expires_at > ?')
+    .get(session, new Date().toISOString());
+  if (!live) return next();
   ensureCsrfCookie(req, res);
   const cookie = parseCookies(req).reska_csrf;
   const header = req.headers['x-csrf-token'];
   if (!cookie) {
     return res.status(403).json({ error: 'Проверка не пройдена', csrfFresh: true });
   }
-  if (!header || cookie !== header || !hmacVerify(session, 'csrf', cookie)) {
+  if (!header || cookie !== header) {
     return res.status(403).json({ error: 'CSRF: проверка не пройдена' });
+  }
+  if (!hmacVerify(session, 'csrf', cookie)) {
+    const fresh = hmacSign(session, 'csrf');
+    res.cookie('reska_csrf', fresh, secure({ httpOnly: false, sameSite: 'lax', maxAge: SESSION_TTL }, req));
+    return res.status(403).json({ error: 'Проверка не пройдена', csrfFresh: true });
   }
   next();
 }

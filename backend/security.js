@@ -51,13 +51,15 @@ function getMasterKey() {
   return Buffer.from(key, 'base64');
 }
 
-/** Секреты для подписи действий. Если отсутствуют — создаются. */
+/** Секреты для подписи действий. Если в .env нет — детерминированно
+ *  выводятся из мастер-ключа, чтобы переживать редеплои/инстансы
+ *  (SPACE_MASTER_KEY нужно задать как env на Render). */
 function getSecret(purpose) {
   loadEnv();
   const name = 'SPACE_SECRET_' + purpose.toUpperCase().replace(/[^A-Z0-9]/g, '_');
   let s = envCache[name];
   if (!s) {
-    s = crypto.randomBytes(32).toString('base64');
+    s = crypto.createHmac('sha256', getMasterKey()).update('secret:' + purpose).digest('base64');
     saveEnv(name, s);
   }
   return s;
