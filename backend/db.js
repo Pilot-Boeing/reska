@@ -4,22 +4,48 @@ const { DatabaseSync } = require('node:sqlite');
 const { randomUid } = require('./security');
 
 const DATA_DIR = path.join(__dirname, '..');
-const DB_PATH = process.env.SPACE_DB_PATH
+
+function safeMkdir(list) {
+  try {
+    for (const d of list) fs.mkdirSync(d, { recursive: true });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+let DB_PATH = process.env.SPACE_DB_PATH
   ? path.resolve(process.env.SPACE_DB_PATH)
   : path.join(DATA_DIR, 'space.db');
 
-const UPLOAD_DIR = process.env.SPACE_UPLOAD_DIR
+let UPLOAD_DIR = process.env.SPACE_UPLOAD_DIR
   ? path.resolve(process.env.SPACE_UPLOAD_DIR)
   : path.join(DATA_DIR, 'uploads');
+
+const uploadSubs = () => [
+  UPLOAD_DIR,
+  path.join(UPLOAD_DIR, 'avatars'),
+  path.join(UPLOAD_DIR, 'posts'),
+  path.join(UPLOAD_DIR, 'videos'),
+  path.join(UPLOAD_DIR, 'thumbs')
+];
+
+if (!safeMkdir(uploadSubs())) {
+  console.warn(`[db] нет доступа к ${UPLOAD_DIR} — использую дефолт ${path.join(DATA_DIR, 'uploads')}`);
+  UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
+  safeMkdir(uploadSubs());
+}
+
+if (!safeMkdir([path.dirname(DB_PATH)])) {
+  console.warn(`[db] нет доступа к ${path.dirname(DB_PATH)} — использую дефолт ${path.join(DATA_DIR, 'space.db')}`);
+  DB_PATH = path.join(DATA_DIR, 'space.db');
+  safeMkdir([path.dirname(DB_PATH)]);
+}
 
 const AVATAR_DIR = path.join(UPLOAD_DIR, 'avatars');
 const POST_DIR = path.join(UPLOAD_DIR, 'posts');
 const VIDEO_DIR = path.join(UPLOAD_DIR, 'videos');
 const THUMB_DIR = path.join(UPLOAD_DIR, 'thumbs');
-
-for (const dir of [UPLOAD_DIR, AVATAR_DIR, POST_DIR, VIDEO_DIR, THUMB_DIR]) {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-}
 
 const db = new DatabaseSync(DB_PATH);
 db.exec('PRAGMA journal_mode = WAL;');
