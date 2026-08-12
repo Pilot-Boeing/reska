@@ -637,6 +637,19 @@ function buildVideoCard(v) {
   $('.video-author', node).textContent = `${v.name} · ${fmtViews(v.views)} просмотров`;
   if (v.is_clip) $('.clip-badge', node).classList.remove('hidden');
   card.addEventListener('click', () => openVideoOverlay(v.id));
+
+  const delBtn = $('[data-action="video-del"]', node);
+  if (v.user_id === me.id || me.role === 'admin') delBtn.classList.remove('hidden');
+  delBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (!confirm('Удалить видео?')) return;
+    try {
+      await api('/videos/' + v.uid, { method: 'DELETE' });
+      card.remove();
+      toast('Видео удалено');
+    } catch (err) { toast(err.message, 'error'); }
+  });
+
   return node;
 }
 
@@ -857,7 +870,7 @@ function buildClipCard(v) {
   const av = $('.clip-avatar', node);
   av.style.backgroundImage = `url(${mediaUrl(v.avatar)})`;
   $('.clip-author-name', node).textContent = v.name || '';
-  $('.clip-author-block', node).href = '#/profile/' + v.uid;
+  $('.clip-author-block', node).href = '#/profile/' + v.author_uid;
   $('.clip-like-count', node).textContent = v.likes || '0';
   $('.clip-comment-count', node).textContent = v.comments != null ? v.comments : '0';
   $('.clip-title', node).textContent = v.title || '';
@@ -872,6 +885,21 @@ function buildClipCard(v) {
   });
 
   $('[data-action="share"]', node).addEventListener('click', () => shareLink('#/watch/' + v.uid, v.title));
+
+  const delBtn = $('[data-action="delete"]', node);
+  if (v.user_id === me.id || me.role === 'admin') delBtn.classList.remove('hidden');
+  delBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (!confirm('Удалить видео?')) return;
+    try {
+      await api('/videos/' + v.uid, { method: 'DELETE' });
+      const clipEl = delBtn.closest('.clip');
+      if (clipEl) clipEl.remove();
+      toast('Видео удалено');
+      const feed = $('.clips-feed');
+      if (feed && !feed.querySelector('.clip')) go('/clips');
+    } catch (err) { toast(err.message, 'error'); }
+  });
 
   return node;
 }
@@ -914,6 +942,7 @@ async function openVideoOverlay(id) {
             <span class="pact-ico">${v.liked ? '❤️' : '🤍'}</span><span class="like-count">${v.likes || ''}</span>
           </button>
           <button class="pact" data-action="share"><span class="pact-ico">🔗</span><span>Поделиться</span></button>
+          ${v.user_id === me.id || me.role === 'admin' ? `<button class="pact pact-del" data-action="vdel"><span class="pact-ico">🗑</span><span>Удалить</span></button>` : ''}
         </div>
       </div>
       ${v.description ? `<div class="watch-desc card">${esc(v.description)}</div>` : ''}
@@ -950,6 +979,17 @@ async function openVideoOverlay(id) {
   });
 
   $('[data-action="share"]', modal).addEventListener('click', () => shareLink('#/watch/' + id, v.title));
+
+  const vdel = $('[data-action="vdel"]', modal);
+  if (vdel) vdel.addEventListener('click', async () => {
+    if (!confirm('Удалить видео?')) return;
+    try {
+      await api('/videos/' + id, { method: 'DELETE' });
+      modal.remove();
+      toast('Видео удалено');
+      go(v.is_clip ? '/clips' : '/videos');
+    } catch (err) { toast(err.message, 'error'); }
+  });
 
   try {
     const cdata = await api(`/videos/${id}/comments`, { silent: true });

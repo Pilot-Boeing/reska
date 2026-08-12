@@ -343,7 +343,7 @@ textarea { resize: vertical; }
   color: var(--text); font-size: 14px; outline: none;
 }
 
-.view { flex: 1; padding: 24px; max-width: 1100px; width: 100%; margin: 0 auto; }
+.view { flex: 1; padding: 24px; max-width: 960px; width: 100%; margin: 0 auto; }
 
 .page-title { font-size: 22px; font-weight: 800; margin-bottom: 18px; }
 .empty { text-align: center; color: var(--muted); padding: 50px 20px; font-size: 15px; }
@@ -384,6 +384,8 @@ textarea { resize: vertical; }
 .pact:hover { border-color: var(--primary); background: var(--card3); }
 .pact.liked { color: var(--danger); border-color: var(--danger); }
 .pact-ico { font-size: 15px; }
+.pact-del { color: var(--danger); }
+.pact-del:hover { border-color: var(--danger); color: var(--danger); }
 
 .comments-wrap { border-top: 1px solid var(--border); padding: 14px 18px 18px; }
 .comments-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }
@@ -412,6 +414,15 @@ textarea { resize: vertical; }
 .video-thumb { position: relative; aspect-ratio: 16/9; overflow: hidden; background: #000; }
 .video-thumb img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s; }
 .video-card:hover .video-thumb img { transform: scale(1.04); }
+.video-del {
+  position: absolute; top: 8px; right: 8px; z-index: 2;
+  width: 34px; height: 34px; border-radius: 50%;
+  border: none; background: rgba(0, 0, 0, 0.55);
+  color: #fff; font-size: 14px; cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: background 0.2s;
+}
+.video-del:hover { background: var(--danger); }
 .video-thumb-play {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
   font-size: 40px; color: #fff; opacity: 0;
@@ -515,6 +526,8 @@ textarea { resize: vertical; }
 .clip-act:hover { transform: scale(1.15); }
 .clip-act.liked .clip-act-ico { animation: heart-pop 0.4s ease; }
 .clip-act-ico { font-size: 30px; }
+.clip-act.clip-del { color: var(--danger); }
+.clip-act.clip-del .clip-act-ico { font-size: 26px; }
 @keyframes heart-pop {
   0% { transform: scale(1); }
   40% { transform: scale(1.4); }
@@ -631,7 +644,7 @@ textarea { resize: vertical; }
 /* =========================================================
    МЕССЕНДЖЕР
    ========================================================= */
-.messenger { display: flex; gap: 18px; height: calc(100vh - var(--topbar-h) - 48px); }
+.messenger { display: flex; gap: 18px; height: calc(100vh - var(--topbar-h) - 48px); max-width: 940px; margin: 0 auto; }
 .chat-sidebar {
   width: 300px; flex-shrink: 0;
   display: flex; flex-direction: column; padding: 14px;
@@ -770,13 +783,16 @@ textarea { resize: vertical; }
   .menu-toggle { display: block !important; }
   .mobilenav {
     display: flex;
-    position: fixed; bottom: 0; left: 0; right: 0;
+    position: fixed;
+    left: 12px; right: 12px;
+    bottom: max(10px, env(safe-area-inset-bottom));
     background: rgba(14, 13, 24, 0.95);
     backdrop-filter: blur(12px);
-    border-top: 1px solid var(--border);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    box-shadow: var(--shadow);
     z-index: 200;
-    padding: 6px 4px;
-    padding-bottom: max(6px, env(safe-area-inset-bottom));
+    padding: 6px 6px;
   }
   .mobilenav a {
     flex: 1;
@@ -787,7 +803,7 @@ textarea { resize: vertical; }
   }
   .mobilenav a.active { color: var(--primary); }
   .mn-ico { font-size: 20px; }
-  .view { padding: 16px; padding-bottom: 80px; }
+  .view { padding: 16px; padding-bottom: 96px; }
   .topbar { padding: 0 14px; }
   .feed { max-width: 100%; }
   .video-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
@@ -800,7 +816,7 @@ textarea { resize: vertical; }
 
 @media (max-width: 520px) {
   .video-grid { grid-template-columns: 1fr; }
-  .view { padding: 12px; padding-bottom: 80px; }
+  .view { padding: 12px; padding-bottom: 96px; }
   .auth-card { padding: 24px; }
   .auth-logo { font-size: 38px; }
 }
