@@ -1996,6 +1996,63 @@ function wireGlobal() {
     if (e.target.classList.contains('slink') && window.innerWidth <= 860) $('#sidebar').classList.remove('open');
   });
 
+  /* ---------- восстановление пароля ---------- */
+  const resetModal = $('#reset-modal');
+  const resetUser = { username: '' };
+  function showResetMsg(text, isError) {
+    const el = $('#reset-msg');
+    el.textContent = text;
+    el.style.color = isError ? 'var(--danger)' : 'var(--ok)';
+    el.classList.remove('hidden');
+  }
+  function openResetModal() {
+    resetUser.username = '';
+    $('#reset-step-1').classList.remove('hidden');
+    $('#reset-step-2').classList.add('hidden');
+    $('#reset-done').classList.add('hidden');
+    $('#reset-msg').classList.add('hidden');
+    $('#reset-username').value = '';
+    resetModal.classList.remove('hidden');
+    setTimeout(() => $('#reset-username').focus(), 50);
+  }
+  function closeResetModal() { resetModal.classList.add('hidden'); }
+  $('#forgot-link').addEventListener('click', (e) => { e.preventDefault(); openResetModal(); });
+  $('#reset-close').addEventListener('click', closeResetModal);
+  resetModal.addEventListener('click', (e) => { if (e.target === resetModal) closeResetModal(); });
+  $('#reset-check').addEventListener('click', async () => {
+    const username = $('#reset-username').value.trim();
+    if (!username) return toast('Введите логин', 'error');
+    try {
+      const res = await api('/auth/reset-status', { method: 'POST', body: { username } });
+      resetUser.username = username;
+      if (res.twofa) {
+        $('#reset-hint').textContent = 'Введите код из приложения (2FA) или один из резервных кодов.';
+        $('#reset-step-1').classList.add('hidden');
+        $('#reset-step-2').classList.remove('hidden');
+      } else {
+        showResetMsg('2FA не включена. Обратись к администратору для сброса пароля.', true);
+      }
+    } catch (err) {
+      showResetMsg(err.message || 'Ошибка', true);
+    }
+  });
+  $('#reset-do').addEventListener('click', async () => {
+    const code = $('#reset-code').value.trim();
+    const np = $('#reset-new').value;
+    const np2 = $('#reset-new2').value;
+    if (!code) return toast('Введите код 2FA', 'error');
+    if (np.length < 6) return toast('Пароль: минимум 6 символов', 'error');
+    if (np !== np2) return toast('Пароли не совпадают', 'error');
+    try {
+      await api('/auth/reset', { method: 'POST', body: { username: resetUser.username, code, new_password: np } });
+      $('#reset-step-2').classList.add('hidden');
+      $('#reset-done').classList.remove('hidden');
+      setTimeout(() => { closeResetModal(); }, 2200);
+    } catch (err) {
+      showResetMsg(err.message || 'Ошибка', true);
+    }
+  });
+
   window.addEventListener('hashchange', render);
 }
 

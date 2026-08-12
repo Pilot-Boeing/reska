@@ -7,6 +7,7 @@ const {
   publicUser,
   createSession,
   destroySession,
+  requireAdmin,
   parseCookies
 } = require('../helpers');
 const {
@@ -296,6 +297,59 @@ router.delete('/sessions/:deviceId', auth, (req, res) => {
   db.prepare('DELETE FROM sessions WHERE user_id = ? AND device_id = ?').run(req.userId, deviceId);
   db.prepare('DELETE FROM refresh_tokens WHERE user_id = ? AND device_id = ?').run(req.userId, deviceId);
   log('session_revoked', { req, userId: req.userId, meta: { deviceId } });
+  res.json({ ok: true });
+});
+
+/* ---------- восстановление пароля ---------- */
+router.post('/reset-status', (req, res) => {
+  const { username } = req.body || {};
+  const user = db.prepare('SELECT id FROM users WHERE lower(username) = lower(?)').get(String(username || ''));
+  if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+  res.json({ twofa: totpEnabled(user.id) });
+});
+
+router.post('/reset', (req, res) => {
+  const { username, code, new_password } = req.body || {};
+  const key = bruteKey(getClientIp(req), String(username || '').toLowerCase());
+  const check = bruteCheck(key);
+  if (!check.ok) {
+    return res.status(429).json({ error: `Слишком много попыток. Подождите ${check.wait} сек.`, locked: true });
+  }
+  const user = db.prepare('SELECT * FROM users WHERE lower(username) = lower(?)').get(String(username || ''));
+  if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+  if (!totpEnabled(user.id)) {
+    return res.status(400).json({ error: '2FA не включена. Обратись к администратору для сброса пароля.' });
+  }
+  const trow = db.prepare('SELECT * FROM totp WHERE user_id = ?').get(user.id);
+  const secret = totpSecretOf(trow);
+  let ok = false;
+  if (secret && verifyTotp(secret, code)) ok = true;
+  if (!ok && verifyBackupCode(trow, code)) ok = true;
+  if (!ok) {
+    bruteFail(key);
+    return res.status(401).json({ error: 'Неверный код 2FA' });
+  }
+  if (!validPassword(new_password)) return res.status(400).json({ error: 'Пароль: 6–128 символов' });
+  db.prepare('UPDATE users SET password_hash = ?, password_changed_at = ? WHERE id = ?')
+    .run(bcrypt.hashSync(String(new_password), BCRYPT_COST), new Date().toISOString(), user.id);
+  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
+  db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?').run(user.id);
+  bruteSuccess(key);
+  log('password_reset', { req, userId: user.id, meta: { via2fa: true } });
+  res.json({ ok: true });
+});
+
+/* сброс пароля любого пользователя (только админ) */
+router.post('/admin-reset', auth, requireAdmin, (req, res) => {
+  const { username, new_password } = req.body || {};
+  if (!validPassword(new_password)) return res.status(400).json({ error: 'Пароль: 6–128 символов' });
+  const user = db.prepare('SELECT * FROM users WHERE lower(username) = lower(?)').get(String(username || ''));
+  if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+  db.prepare('UPDATE users SET password_hash = ?, password_changed_at = ? WHERE id = ?')
+    .run(bcrypt.hashSync(String(new_password), BCRYPT_COST), new Date().toISOString(), user.id);
+  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
+  db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?').run(user.id);
+  log('admin_password_reset', { req, userId: req.userId, meta: { target: user.id } });
   res.json({ ok: true });
 });
 

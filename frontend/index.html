@@ -32,6 +32,7 @@
         <div class="field">
           <label>Пароль</label>
           <input type="password" name="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" required placeholder="••••••••">
+          <div class="forgot-row"><a href="#" id="forgot-link">Забыл пароль?</a></div>
         </div>
         <div class="field hidden" id="captcha-field">
           <label>Проверка: <b id="captcha-question"></b> = ?</label>
@@ -43,6 +44,45 @@
         </div>
         <button type="submit" class="btn btn-primary btn-block" id="auth-submit">Войти</button>
       </form>
+    </div>
+  </div>
+
+  <!-- ============ ВОССТАНОВЛЕНИЕ ПАРОЛЯ ============ -->
+  <div id="reset-modal" class="modal-backdrop hidden">
+    <div class="modal card">
+      <button class="close-x" id="reset-close"></button>
+      <h2 class="page-title">Сброс пароля</h2>
+
+      <div id="reset-step-1">
+        <div class="field">
+          <label>Логин</label>
+          <input id="reset-username" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Например: alex">
+        </div>
+        <button id="reset-check" class="btn btn-primary btn-block">Продолжить</button>
+      </div>
+
+      <div id="reset-step-2" class="hidden">
+        <p class="muted" id="reset-hint"></p>
+        <div class="field">
+          <label>Код 2FA или резервный код</label>
+          <input id="reset-code" inputmode="numeric" autocomplete="one-time-code" placeholder="000000">
+        </div>
+        <div class="field">
+          <label>Новый пароль</label>
+          <input id="reset-new" type="password" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="••••••••">
+        </div>
+        <div class="field">
+          <label>Повтори пароль</label>
+          <input id="reset-new2" type="password" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="••••••••">
+        </div>
+        <button id="reset-do" class="btn btn-primary btn-block">Сбросить пароль</button>
+      </div>
+
+      <div id="reset-done" class="hidden">
+        <p class="ok">✓ Пароль изменён. Войди заново.</p>
+      </div>
+
+      <div id="reset-msg" class="hidden"></div>
     </div>
   </div>
 

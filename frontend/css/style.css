@@ -130,6 +130,11 @@ a:hover { text-decoration: underline; }
 }
 .auth-sub { text-align: center; color: var(--muted); margin: 8px 0 24px; }
 
+.forgot-row { text-align: right; margin-top: 6px; }
+.forgot-row a { color: var(--primary); font-size: 13px; text-decoration: none; }
+.forgot-row a:hover { text-decoration: underline; }
+.ok { color: var(--ok); font-weight: 600; }
+
 .tabs { display: flex; gap: 8px; margin-bottom: 20px; background: var(--bg2); border-radius: var(--radius-sm); padding: 5px; }
 .tab { flex: 1; cursor: pointer; border: none; background: transparent; color: var(--muted); padding: 9px; border-radius: 8px; font-weight: 600; transition: all 0.2s; }
 .tab.active { background: linear-gradient(120deg, var(--primary), var(--primary2)); color: #fff; }
