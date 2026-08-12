@@ -3,7 +3,7 @@
   "appName": "РЕСКА",
   "webDir": "frontend",
   "server": {
-    "url": "http://192.168.0.111:3000",
+    "url": "https://reska-z7h0.onrender.com",
     "cleartext": true
   },
   "android": {
