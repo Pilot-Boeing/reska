@@ -172,7 +172,7 @@
       <a href="#/feed" data-nav="feed"><span class="mn-ico">🏠</span><span class="mn-txt">Лента</span></a>
       <a href="#/videos" data-nav="videos"><span class="mn-ico">▶</span><span class="mn-txt">Видео</span></a>
       <a href="#/clips" data-nav="clips"><span class="mn-ico">🎬</span><span class="mn-txt">Клипы</span></a>
-      <a href="#/messages" data-nav="messages"><span class="mn-ico">💬</span><span class="mn-txt">Чат</span></a>
+      <a href="#/messages" data-nav="messages"><span class="mn-ico">💬<span id="msg-badge-mn" class="badge mn-badge hidden">0</span></span><span class="mn-txt">Чат</span></a>
       <a href="#/profile/me" data-nav="profile"><span class="mn-ico">👤</span><span class="mn-txt">Профиль</span></a>
     </nav>
 
@@ -282,12 +282,12 @@
       <div class="comments-sheet-panel glass">
         <div class="comments-sheet-head">
           <span class="comments-sheet-count">Комментарии</span>
-          <button class="comments-sheet-close"></button>
+          <button class="comments-sheet-close">✕</button>
         </div>
         <div class="comments-sheet-list"></div>
         <div class="comments-sheet-form">
           <input type="text" name="comment" placeholder="Добавить комментарий..." autocomplete="off">
-          <button type="submit" class="btn btn-primary btn-sm">></button>
+          <button type="submit" class="btn btn-primary btn-sm">➤</button>
         </div>
       </div>
     </div>

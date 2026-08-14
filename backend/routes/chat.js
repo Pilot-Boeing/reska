@@ -1,10 +1,13 @@
 const express = require('express');
-const { db } = require('../db');
+const fs = require('fs');
+const path = require('path');
+const { db, UPLOAD_DIR } = require('../db');
 const { auth, publicUser, findByIdOrUid } = require('../helpers');
 const { sanitizeText } = require('../validate');
 const { randomUid } = require('../security');
 const { log } = require('../logger');
 const { notifyUser } = require('../fcm');
+const { uploadChatMedia } = require('../upload');
 
 const router = express.Router();
 
@@ -39,7 +42,14 @@ router.get('/', auth, (req, res) => {
               u.id AS other_id, u.username, u.name, u.avatar,
               g.name AS group_name, g.description AS group_description,
               (SELECT COUNT(*) FROM chat_members cm WHERE cm.chat_id = c.id) AS member_count,
-              (SELECT CASE WHEN m.e2ee = 1 THEN '🔒 Зашифровано' ELSE m.text END
+              (SELECT CASE
+                 WHEN m.media_type = 'image' THEN '🖼 Фото'
+                 WHEN m.media_type = 'video' THEN '🎬 Видео'
+                 WHEN m.media_type = 'audio' THEN '🎤 Аудио'
+                 WHEN m.media_type = 'round' THEN '⭕ Кружок'
+                 WHEN m.media_type = 'file' THEN '📎 ' || COALESCE(m.media_name, 'Файл')
+                 WHEN m.e2ee = 1 THEN '🔒 Зашифровано'
+                 ELSE m.text END
                  FROM messages m WHERE m.chat_id = c.id ORDER BY m.id DESC LIMIT 1) AS last_text,
               (SELECT m.created_at FROM messages m WHERE m.chat_id = c.id
                  ORDER BY m.id DESC LIMIT 1) AS last_at,
@@ -107,6 +117,7 @@ router.post('/', auth, (req, res) => {
 
   const MESSAGE_QUERY = `
   SELECT m.id, m.chat_id, m.sender_id, m.text, m.e2ee, m.read, m.edited, m.created_at,
+         m.media, m.media_type, m.media_name, m.media_mime, m.media_size, m.media_duration,
          u.username, u.name, u.avatar
   FROM messages m JOIN users u ON u.id = m.sender_id
 `;
@@ -154,9 +165,13 @@ router.get('/:id/messages', auth, (req, res) => {
   res.json({ messages, chatUid: chat.uid });
 });
 
-router.post('/:id/messages', auth, (req, res) => {
+router.post('/:id/messages', auth, (req, res, next) => {
   const chat = chatForUser(req.params.id, req.userId);
   if (!chat) return res.status(403).json({ error: 'Нет доступа к чату' });
+  req.chat = chat;
+  next();
+}, uploadChatMedia('file'), (req, res) => {
+  const chat = req.chat;
 
   const isGroup = chat.kind === 'group';
   const e2ee = !isGroup && (req.body.e2ee === true || req.body.e2ee === 1 || req.body.e2ee === '1') ? 1 : 0;
@@ -166,11 +181,27 @@ router.post('/:id/messages', auth, (req, res) => {
   } else {
     text = sanitizeText(req.body.text, 4000);
   }
-  if (!text) return res.status(400).json({ error: 'Сообщение пустое' });
+
+  const media = req.file ? `chats/${chat.id}/${req.file.filename}` : '';
+  const mediaType = req.file ? mediaTypeFromMime(req.file.mimetype, req.body.kind) : '';
+  const mediaName = req.file
+    ? String(req.file.originalname || 'Файл').slice(0, 200)
+    : '';
+  const mediaMime = req.file ? req.file.mimetype : '';
+  const mediaSize = req.file ? Number(req.file.size) || 0 : 0;
+  const mediaDuration = Number(req.body.duration) || 0;
+
+  if (!text && !media) return res.status(400).json({ error: 'Сообщение пустое' });
+  if (req.file && req.file.error) {
+    return res.status(400).json({ error: String(req.file.error) });
+  }
 
   const r = db
-    .prepare('INSERT INTO messages (chat_id, sender_id, text, e2ee) VALUES (?, ?, ?, ?)')
-    .run(chat.id, req.userId, text, e2ee);
+    .prepare(
+      `INSERT INTO messages (chat_id, sender_id, text, e2ee, media, media_type, media_name, media_mime, media_size, media_duration)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(chat.id, req.userId, text, e2ee, media, mediaType, mediaName, mediaMime, mediaSize, mediaDuration);
   const message = messageWithMeta(
     db.prepare(`${MESSAGE_QUERY} WHERE m.id = ?`).get(Number(r.lastInsertRowid)),
     req.userId
@@ -183,9 +214,7 @@ router.post('/:id/messages', auth, (req, res) => {
     io.to(`user:${req.userId}`).emit('chat:message', payload);
     targets.forEach((id) => io.to(`user:${id}`).emit('chat:message', payload));
   }
-  const preview = e2ee
-    ? '🔒 Зашифрованное сообщение'
-    : String(text).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
+  const preview = mediaPreview(message, text);
   const title = isGroup
     ? (db.prepare('SELECT name FROM groups WHERE id = ?').get(chat.group_id) || {}).name || 'Группа'
     : req.user.name;
@@ -200,9 +229,34 @@ router.post('/:id/messages', auth, (req, res) => {
       req.app.get('onlineUsers')
     )
   );
-  log('message', { req, userId: req.userId, meta: { chatId: chat.id, e2ee } });
+  log('message', { req, userId: req.userId, meta: { chatId: chat.id, e2ee, hasMedia: !!media } });
   res.status(201).json({ message });
 });
+
+function mediaTypeFromMime(mime, kind) {
+  if (kind === 'round') return 'round';
+  const m = String(mime || '').toLowerCase();
+  if (m.startsWith('image/')) return 'image';
+  if (m.startsWith('video/')) return 'video';
+  if (m.startsWith('audio/')) return 'audio';
+  if (m.startsWith('application/ogg')) return 'audio';
+  return 'file';
+}
+
+function mediaPreview(message, rawText) {
+  if (!message.media) {
+    if (message.e2ee) return '🔒 Зашифрованное сообщение';
+    const t = String(rawText || '');
+    return t.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
+  }
+  switch (message.media_type) {
+    case 'image': return '🖼 Фото';
+    case 'video': return '🎬 Видео';
+    case 'audio': return '🎤 Аудио';
+    case 'round': return '⭕ Кружок';
+    default: return '📎 ' + (message.media_name || 'Файл');
+  }
+}
 
 router.post('/:id/read', auth, (req, res) => {
   const chat = chatForUser(req.params.id, req.userId);
@@ -244,6 +298,14 @@ router.patch('/:id/messages/:mid', auth, (req, res) => {
   res.json({ message: updated });
 });
 
+function deleteMediaFile(relPath) {
+  if (!relPath) return;
+  const abs = path.join(UPLOAD_DIR, String(relPath).replace(/^\/+/, ''));
+  if (abs.startsWith(UPLOAD_DIR) && fs.existsSync(abs)) {
+    try { fs.unlinkSync(abs); } catch (e) {}
+  }
+}
+
 router.delete('/:id/messages/:mid', auth, (req, res) => {
   const chat = chatForUser(req.params.id, req.userId);
   if (!chat) return res.status(403).json({ error: 'Нет доступа к чату' });
@@ -252,6 +314,7 @@ router.delete('/:id/messages/:mid', auth, (req, res) => {
   if (msg.sender_id !== req.userId && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Нельзя удалить чужое сообщение' });
   }
+  deleteMediaFile(msg.media);
   db.prepare('DELETE FROM message_reactions WHERE message_id = ?').run(msg.id);
   db.prepare('DELETE FROM messages WHERE id = ?').run(msg.id);
   const io = req.app.get('io');

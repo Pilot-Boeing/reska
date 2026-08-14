@@ -243,6 +243,32 @@ async function main() {
   r = await api('GET', '/api/chats', { jar: jarB });
   check('превью e2ee скрыто', r.data.chats.some((c) => c.last_text === '🔒 Зашифровано'));
 
+  /* 10.1 медиа-сообщение: файл в чате */
+  const chatForm = new FormData();
+  chatForm.append('text', 'Вот файл');
+  chatForm.append('duration', '3.5');
+  chatForm.append('file', new Blob([PNG], { type: 'image/png' }), 'chat-pic.png');
+  r = await api('POST', `/api/chats/${chatUid}/messages`, { body: chatForm, jar: jarA, raw: true });
+  check('медиа-сообщение', r.res.status === 201 && r.data.message.media, String(r.res.status));
+  const chatMediaPath = r.data.message.media;
+  check('тип медиа image', r.data.message.media_type === 'image');
+  const chatMediaRes = await fetch(`${BASE}/api/media/${chatMediaPath}`, {
+    headers: { cookie: Object.entries(jarA).map(([k, v]) => `${k}=${v}`).join('; ') }
+  });
+  const chatMediaBuf = Buffer.from(await chatMediaRes.arrayBuffer());
+  check('медиа чата отдаётся', chatMediaRes.status === 200 && chatMediaBuf.equals(PNG), `${chatMediaRes.status}`);
+  const chatMediaAnonymous = await fetch(`${BASE}/api/media/${chatMediaPath}`);
+  const anonText = await chatMediaAnonymous.text();
+  check('медиа чата без сессии → 403/401', chatMediaAnonymous.status === 403 || chatMediaAnonymous.status === 401 || /Доступ/.test(anonText), `${chatMediaAnonymous.status}`);
+  const chatListA = await api('GET', '/api/chats', { jar: jarA });
+  check('превью фото в списке чатов', chatListA.data.chats.some((c) => c.last_text === '🖼 Фото'));
+  r = await api('DELETE', `/api/chats/${chatUid}/messages/${r.data.message.id}`, { jar: jarA });
+  check('удаление медиа-сообщения', r.res.status === 200);
+  const chatMediaGone = await fetch(`${BASE}/api/media/${chatMediaPath}`, {
+    headers: { cookie: Object.entries(jarA).map(([k, v]) => `${k}=${v}`).join('; ') }
+  });
+  check('файл удалён с диска', chatMediaGone.status === 404, `${chatMediaGone.status}`);
+
   /* 11. 2FA: включение + вход по коду */
   r = await api('POST', '/api/auth/2fa/setup', { jar: jarB });
   check('2FA setup', r.res.status === 200 && !!r.data.secret && !!r.data.token, String(r.res.status));

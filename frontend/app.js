@@ -68,6 +68,19 @@ function fmtViews(n) {
   return String(n);
 }
 
+function fmtSize(bytes) {
+  const b = Number(bytes) || 0;
+  if (b >= 1073741824) return (b / 1073741824).toFixed(1).replace('.0', '') + ' ГБ';
+  if (b >= 1048576) return (b / 1048576).toFixed(1).replace('.0', '') + ' МБ';
+  if (b >= 1024) return (b / 1024).toFixed(0) + ' КБ';
+  return b + ' Б';
+}
+
+function fmtDuration(sec) {
+  const s = Math.round(Number(sec) || 0);
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+
 function b64encode(buf) {
   let s = '';
   for (let i = 0; i < buf.length; i++) s += String.fromCharCode(buf[i]);
@@ -279,6 +292,7 @@ async function render() {
   const { segs, query } = parseHash();
   const route = segs[0] || 'feed';
   setActiveNav(route);
+  updateFab(route);
 
   try {
     switch (route) {
@@ -303,6 +317,16 @@ async function render() {
     if (e.status === 401) return showAuth();
     $('#view').innerHTML = `<div class="empty">Ошибка: ${esc(e.message)}</div>`;
   }
+}
+
+/* FAB показываем только там, где уместно создавать контент */
+function updateFab(route) {
+  const fab = $('#fab-main');
+  const menu = $('#fab-menu');
+  if (!fab) return;
+  const show = ['feed', 'videos', 'search'].includes(route);
+  fab.style.display = show ? '' : 'none';
+  if (!show) menu.classList.add('hidden');
 }
 
 function setActiveNav(route) {
@@ -435,10 +459,19 @@ async function connectSocket() {
   });
 }
 
+function setMsgBadges(total) {
+  const a = $('#msg-badge');
+  const b = $('#msg-badge-mn');
+  const val = total > 99 ? '99+' : String(total || '');
+  [a, b].forEach((el) => {
+    if (!el) return;
+    el.textContent = val;
+    el.classList.toggle('hidden', !total);
+  });
+}
+
 function bumpBadge() {
-  const badge = $('#msg-badge');
-  badge.textContent = (Number(badge.textContent) || 0) + 1;
-  badge.classList.remove('hidden');
+  setMsgBadges((Number($('#msg-badge').textContent) || 0) + 1);
 }
 
 async function loadChatBadges() {
@@ -446,9 +479,7 @@ async function loadChatBadges() {
     const data = await api('/chats', { silent: true });
     chatsCache = data.chats;
     const total = chatsCache.reduce((s, c) => s + (c.unread || 0), 0);
-    const badge = $('#msg-badge');
-    if (total > 0) { badge.textContent = total > 99 ? '99+' : total; badge.classList.remove('hidden'); }
-    else badge.classList.add('hidden');
+    setMsgBadges(total);
   } catch (e) {}
 }
 
@@ -1114,9 +1145,7 @@ async function viewMessages(openChatUid) {
   const data = await api('/chats');
   chatsCache = data.chats;
   const total = chatsCache.reduce((s, c) => s + (c.unread || 0), 0);
-  const badge = $('#msg-badge');
-  if (total > 0) { badge.textContent = total > 99 ? '99+' : total; badge.classList.remove('hidden'); }
-  else badge.classList.add('hidden');
+  setMsgBadges(total);
 
   if (openChatUid) {
     await openChat(openChatUid);
@@ -1243,9 +1272,16 @@ async function openChat(chatUid) {
         ${head}
       </div>
       <div class="chat-messages" id="chat-messages"></div>
+      <div class="chat-preview hidden" id="chat-preview"></div>
       <form class="chat-input" id="chat-input">
-        <input type="text" placeholder="Сообщение..." autocomplete="off" maxlength="4000">
-        <button type="submit" class="btn btn-primary">➤</button>
+        <div class="chat-tools">
+          <button type="button" class="chat-tool" data-tool="file" title="Файл">📎</button>
+          <button type="button" class="chat-tool" data-tool="media" title="Фото/видео">🖼</button>
+          <button type="button" class="chat-tool" data-tool="audio" title="Аудиосообщение">🎤</button>
+          <button type="button" class="chat-tool" data-tool="round" title="Кружок (видео)">⭕</button>
+        </div>
+        <input type="text" placeholder="Сообщение..." autocomplete="off" maxlength="4000" id="chat-text">
+        <button type="submit" class="btn btn-primary" id="chat-send">➤</button>
       </form>
     </div>`;
 
@@ -1261,22 +1297,215 @@ async function openChat(chatUid) {
   scrollChat();
 
   typingTimer = null;
-  const chatInput = $('input', view);
+  const chatInput = $('input#chat-text', view);
   chatInput.addEventListener('input', () => {
     if (chatInput.value.trim() && !typingTimer) sendTyping(chatUid);
   });
 
+  const previewBox = $('#chat-preview', view);
+  const sendBtn = $('#chat-send', view);
+  let attach = null;   // { file, type, name, duration }
+  let recorder = null;
+  let recStream = null;
+  let recTimer = null;
+  let recStart = 0;
+  let recMax = 0;
+
+  function revokeAttach() {
+    if (attach && attach.url) { URL.revokeObjectURL(attach.url); }
+    attach = null;
+    previewBox.classList.add('hidden');
+    previewBox.innerHTML = '';
+    sendBtn.textContent = '➤';
+    sendBtn.classList.remove('rec');
+  }
+
+  function showAttachPreview() {
+    if (!attach) return;
+    previewBox.classList.remove('hidden');
+    previewBox.innerHTML = '';
+    const p = document.createElement('div');
+    p.className = 'chat-preview-inner';
+    if (attach.type === 'image' && attach.url) {
+      p.innerHTML = `<img src="${attach.url}" alt=""><span class="chat-preview-name">${esc(attach.name)}</span>`;
+    } else if (attach.type === 'video' && attach.url) {
+      p.innerHTML = `<video src="${attach.url}" controls preload="metadata"></video><span class="chat-preview-name">${esc(attach.name)}</span>`;
+    } else if (attach.type === 'audio' && attach.url) {
+      p.innerHTML = `<audio src="${attach.url}" controls preload="metadata"></audio>`;
+    } else if (attach.type === 'round' && attach.url) {
+      p.innerHTML = `<video class="round-preview" src="${attach.url}" autoplay loop muted playsinline></video>`;
+    } else {
+      p.innerHTML = `<span class="chat-preview-file">📎 ${esc(attach.name)} · ${fmtSize(attach.file && attach.file.size)}</span>`;
+    }
+    const rm = document.createElement('button');
+    rm.type = 'button';
+    rm.className = 'chat-preview-rm';
+    rm.title = 'Отменить';
+    rm.textContent = '✕';
+    rm.addEventListener('click', () => { if (recorder) stopRec(true); else revokeAttach(); });
+    p.appendChild(rm);
+    previewBox.appendChild(p);
+    sendBtn.textContent = '➤';
+  }
+
+  function startRec(type) {
+    if (recorder) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
+      toast('Запись не поддерживается этим браузером', 'error');
+      return;
+    }
+    const isRound = type === 'round';
+    recMax = isRound ? 120 : 60;
+    let mime = '';
+    const candidates = isRound
+      ? ['video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4']
+      : ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
+    for (const c of candidates) { if (MediaRecorder.isTypeSupported(c)) { mime = c; break; } }
+    const opts = { audio: true };
+    if (isRound) opts.video = { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 1280 } };
+    navigator.mediaDevices.getUserMedia(opts).then((stream) => {
+      recStream = stream;
+      try {
+        recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      } catch (e) {
+        recorder = new MediaRecorder(stream);
+      }
+      const chunks = [];
+      recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+      recorder.onstop = () => {
+        const type = recorder.mimeType || (isRound ? 'video/webm' : 'audio/webm');
+        const ext = /mp4/.test(type) ? 'mp4' : 'webm';
+        const blob = new Blob(chunks, { type });
+        const dur = Math.round((Date.now() - recStart) / 1000);
+        if (attach) revokeAttach();
+        attach = {
+          file: blob,
+          type: isRound ? 'round' : 'audio',
+          name: (isRound ? 'round_' : 'voice_') + Date.now() + '.' + ext,
+          duration: dur,
+          url: URL.createObjectURL(blob)
+        };
+        stopStream(recStream); recStream = null;
+        recorder = null;
+        clearRecUi();
+        showAttachPreview();
+        toast(isRound ? 'Кружок готов, отправьте' : 'Аудио готово, отправьте');
+      };
+      recorder.start(250);
+      recStart = Date.now();
+      renderRecUi(isRound);
+      recTimer = setInterval(() => {
+        const el = $('#chat-preview .rec-timer');
+        if (el) el.textContent = fmtDuration((Date.now() - recStart) / 1000);
+        if (recMax && Date.now() - recStart >= recMax * 1000) stopRec(false);
+      }, 250);
+    }).catch(() => toast('Нет доступа к микрофону/камере', 'error'));
+  }
+
+  function renderRecUi(isRound) {
+    previewBox.classList.remove('hidden');
+    previewBox.innerHTML = `
+      <div class="rec-inner ${isRound ? 'round' : ''}">
+        ${isRound ? `<video class="rec-live" autoplay muted playsinline></video>` : '<span class="rec-dot"></span>'}
+        <span class="rec-timer">0:00</span>
+        <span class="rec-label">${isRound ? '⭕ Кружок (до 2:00)' : '🎤 Аудио (до 1:00)'}</span>
+        <button type="button" class="btn btn-primary btn-sm rec-stop">⏹</button>
+      </div>`;
+    if (isRound && recStream) {
+      const v = $('.rec-live', previewBox);
+      v.srcObject = recStream;
+    }
+    sendBtn.textContent = '⏺';
+    sendBtn.classList.add('rec');
+    const stop = $('.rec-stop', previewBox);
+    if (stop) stop.addEventListener('click', () => stopRec(false));
+  }
+
+  function clearRecUi() {
+    if (recTimer) { clearInterval(recTimer); recTimer = null; }
+  }
+
+  function stopRec(cancel) {
+    if (!recorder) return;
+    clearRecUi();
+    if (cancel) {
+      recorder.onstop = null;
+      try { recorder.stop(); } catch (e) {}
+      stopStream(recStream); recStream = null;
+      recorder = null;
+      revokeAttach();
+      toast('Запись отменена');
+      return;
+    }
+    try { recorder.stop(); } catch (e) {}
+  }
+
+  function stopStream(s) {
+    if (!s) return;
+    s.getTracks().forEach((t) => t.stop());
+  }
+
+  function openFilePicker(accept, kind) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.onchange = () => {
+      const f = input.files && input.files[0];
+      if (!f) return;
+      if (recorder) stopRec(true);
+      revokeAttach();
+      const isImg = f.type.startsWith('image/');
+      const isVid = f.type.startsWith('video/');
+      const isAud = f.type.startsWith('audio/');
+      attach = {
+        file: f,
+        type: isImg ? 'image' : isVid ? 'video' : isAud ? 'audio' : 'file',
+        name: f.name,
+        duration: 0,
+        url: isImg || isVid || isAud ? URL.createObjectURL(f) : null
+      };
+      showAttachPreview();
+      chatInput.focus();
+    };
+    input.click();
+  }
+
+  $$('.chat-tool', view).forEach((btn) => btn.addEventListener('click', () => {
+    const tool = btn.dataset.tool;
+    if (tool === 'file') openFilePicker('*', 'file');
+    else if (tool === 'media') openFilePicker('image/*,video/*', 'media');
+    else if (tool === 'audio') startRec('audio');
+    else if (tool === 'round') startRec('round');
+  }));
+
   $('#chat-input', view).addEventListener('submit', async (e) => {
     e.preventDefault();
-    const input = $('input', e.target);
+    const input = chatInput;
     const text = input.value.trim();
-    if (!text) return;
-    input.value = '';
+    if (!text && !attach) return;
+
     try {
-      let body = { text, e2ee: false };
+      let body;
+      const useE2ee = !isGroup && !attach;
+      let pub = null;
       if (!isGroup) {
         const other = chat && chat.other ? chat.other : null;
-        const pub = other ? await otherPubKey(other.uid) : null;
+        if (other) pub = await otherPubKey(other.uid);
+      }
+      let fd = null;
+      if (attach) {
+        fd = new FormData();
+        if (text) fd.append('text', text);
+        if (attach.duration) fd.append('duration', String(attach.duration));
+        if (attach.type === 'round') fd.append('kind', 'round');
+        fd.append('file', attach.file, attach.name);
+        if (pub && text) {
+          const enc = await E2EE.encrypt(text, pub);
+          fd.set('text', JSON.stringify(enc));
+          fd.append('e2ee', '1');
+        }
+      } else {
+        body = { text, e2ee: false };
         if (pub) {
           try {
             const enc = await E2EE.encrypt(text, pub);
@@ -1286,7 +1515,9 @@ async function openChat(chatUid) {
           }
         }
       }
-      const res = await api(`/chats/${chatUid}/messages`, { method: 'POST', body });
+      input.value = '';
+      if (attach) revokeAttach();
+      const res = await api(`/chats/${chatUid}/messages`, { method: 'POST', body: fd || body });
       const m = await decryptMessage(res.message, chatUid);
       appendMessage(m);
       scrollChat();
@@ -1312,6 +1543,78 @@ async function deleteChat(chat, isGroup) {
   } catch (err) { toast(err.message, 'error'); }
 }
 
+function downloadMediaUrl(m) {
+  const base = mediaUrl(m.media);
+  const sep = base.includes('?') ? '&' : '?';
+  return base + sep + 'name=' + encodeURIComponent(m.media_name || 'file');
+}
+
+function mediaNode(m) {
+  const url = mediaUrl(m.media);
+  const type = m.media_type || '';
+  if (type === 'image') {
+    const img = document.createElement('img');
+    img.className = 'msg-media-img';
+    img.src = url;
+    img.alt = '';
+    img.loading = 'lazy';
+    return img;
+  }
+  if (type === 'audio') {
+    const audio = document.createElement('audio');
+    audio.className = 'msg-media-audio';
+    audio.src = url;
+    audio.controls = true;
+    audio.preload = 'metadata';
+    return audio;
+  }
+  if (type === 'round') {
+    const wrap = document.createElement('div');
+    wrap.className = 'msg-media-round';
+    const video = document.createElement('video');
+    video.src = url;
+    video.muted = true;
+    video.loop = true;
+    video.playsInline = true;
+    video.preload = 'metadata';
+    video.addEventListener('click', () => {
+      if (video.paused) { video.muted = false; video.play(); }
+      else { video.pause(); video.muted = true; }
+    });
+    wrap.appendChild(video);
+    const badge = document.createElement('span');
+    badge.className = 'round-duration';
+    badge.textContent = fmtDuration(m.media_duration);
+    wrap.appendChild(badge);
+    return wrap;
+  }
+  if (type === 'video') {
+    const video = document.createElement('video');
+    video.className = 'msg-media-video';
+    video.src = url;
+    video.controls = true;
+    video.playsInline = true;
+    video.preload = 'metadata';
+    return video;
+  }
+  const a = document.createElement('a');
+  a.className = 'msg-media-file';
+  a.href = downloadMediaUrl(m);
+  a.textContent = '📎 ' + (m.media_name || 'Файл') + (m.media_size ? ' · ' + fmtSize(m.media_size) : '');
+  a.target = '_blank';
+  a.rel = 'noopener';
+  return a;
+}
+
+function captionNode(m) {
+  const cap = document.createElement('div');
+  cap.className = 'msg-caption';
+  cap.textContent = m.text;
+  if (m.e2eeText) cap.classList.add('e2ee');
+  if (m.edited && !m.e2eeText) cap.textContent += ' (ред.)';
+  return cap;
+}
+
 function appendMessage(m) {
   const container = $('#chat-messages');
   if (!container) return;
@@ -1325,9 +1628,15 @@ function appendMessage(m) {
     author.textContent = m.sender_id === me.id ? (me.name || 'Вы') : (m.name || 'Пользователь');
     div.insertBefore(author, $('.msg-bubble', node));
   }
-  $('.msg-bubble', node).textContent = m.text;
-  if (m.e2eeText) $('.msg-bubble', node).classList.add('e2ee');
-  if (m.edited && !m.e2eeText) $('.msg-bubble', node).textContent += ' (ред.)';
+  const bubble = $('.msg-bubble', node);
+  if (m.media) {
+    bubble.appendChild(mediaNode(m));
+    if (m.text) bubble.appendChild(captionNode(m));
+  } else {
+    bubble.textContent = m.text;
+    if (m.e2eeText) bubble.classList.add('e2ee');
+    if (m.edited && !m.e2eeText) bubble.textContent += ' (ред.)';
+  }
   const time = $('.msg-time', node);
   time.textContent = fmtTime(m.created_at);
   time.title = m.created_at;
@@ -1384,6 +1693,14 @@ function appendMessage(m) {
     });
     div.appendChild(box);
   }
+  if (window.matchMedia('(max-width: 860px)').matches) {
+    div.addEventListener('click', (e) => {
+      if (e.target.closest('a, button, video, audio, .msg-actions, .reaction-picker')) return;
+      const wasOpen = div.classList.contains('actions-open');
+      $$('#chat-messages .msg.actions-open').forEach((o) => o.classList.remove('actions-open'));
+      if (!wasOpen) div.classList.add('actions-open');
+    });
+  }
   container.appendChild(node);
 }
 
@@ -1396,9 +1713,24 @@ function updateMessageEl(id, m) {
   const el = document.querySelector(`#chat-messages .msg[data-mid="${id}"]`);
   if (!el) return;
   const bubble = $('.msg-bubble', el);
-  bubble.textContent = m.text;
-  bubble.classList.toggle('e2ee', !!m.e2eeText);
-  if (m.edited && !m.e2eeText) bubble.textContent += ' (ред.)';
+  if (m.media) {
+    let cap = $('.msg-caption', bubble);
+    if (m.text) {
+      if (cap) {
+        cap.textContent = m.text;
+        cap.classList.toggle('e2ee', !!m.e2eeText);
+        if (m.edited && !m.e2eeText) cap.textContent += ' (ред.)';
+      } else {
+        bubble.appendChild(captionNode(m));
+      }
+    } else if (cap) {
+      cap.remove();
+    }
+  } else {
+    bubble.textContent = m.text;
+    bubble.classList.toggle('e2ee', !!m.e2eeText);
+    if (m.edited && !m.e2eeText) bubble.textContent += ' (ред.)';
+  }
   const box = $('.msg-reactions', el);
   if (box) box.remove();
   if (m.reactions && m.reactions.length) {

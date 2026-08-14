@@ -27,7 +27,8 @@ const uploadSubs = () => [
   path.join(UPLOAD_DIR, 'avatars'),
   path.join(UPLOAD_DIR, 'posts'),
   path.join(UPLOAD_DIR, 'videos'),
-  path.join(UPLOAD_DIR, 'thumbs')
+  path.join(UPLOAD_DIR, 'thumbs'),
+  path.join(UPLOAD_DIR, 'chats')
 ];
 
 if (!safeMkdir(uploadSubs())) {
@@ -46,6 +47,7 @@ const AVATAR_DIR = path.join(UPLOAD_DIR, 'avatars');
 const POST_DIR = path.join(UPLOAD_DIR, 'posts');
 const VIDEO_DIR = path.join(UPLOAD_DIR, 'videos');
 const THUMB_DIR = path.join(UPLOAD_DIR, 'thumbs');
+const CHAT_DIR = path.join(UPLOAD_DIR, 'chats');
 
 const db = new DatabaseSync(DB_PATH);
 db.exec('PRAGMA journal_mode = WAL;');
@@ -321,6 +323,12 @@ function migrate() {
   addColumn('chats', 'group_id', 'INTEGER');
   addColumn('messages', 'e2ee', 'INTEGER NOT NULL DEFAULT 0');
   addColumn('messages', 'edited', 'INTEGER NOT NULL DEFAULT 0');
+  addColumn('messages', 'media', "TEXT DEFAULT ''");
+  addColumn('messages', 'media_type', "TEXT DEFAULT ''");
+  addColumn('messages', 'media_name', "TEXT DEFAULT ''");
+  addColumn('messages', 'media_mime', "TEXT DEFAULT ''");
+  addColumn('messages', 'media_size', 'INTEGER NOT NULL DEFAULT 0');
+  addColumn('messages', 'media_duration', 'REAL NOT NULL DEFAULT 0');
   addColumn('sessions', 'device_id', 'TEXT');
   addColumn('sessions', 'ip_hash', 'TEXT');
   addColumn('sessions', 'ua_hash', 'TEXT');
@@ -352,5 +360,6 @@ module.exports = {
   AVATAR_DIR,
   POST_DIR,
   VIDEO_DIR,
-  THUMB_DIR
+  THUMB_DIR,
+  CHAT_DIR
 };

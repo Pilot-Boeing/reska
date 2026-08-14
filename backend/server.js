@@ -26,7 +26,7 @@ app.use((req, res, next) => {
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'no-referrer',
-    'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+    'Permissions-Policy': 'camera=(self), microphone=(self), geolocation=(), payment=()',
     'Content-Security-Policy':
       "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
       "img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' ws: wss:; " +
@@ -56,23 +56,67 @@ const MIME_BY_EXT = {
   '.webm': 'video/webm',
   '.mov': 'video/quicktime',
   '.mkv': 'video/x-matroska',
-  '.ogg': 'video/ogg',
+  '.ogg': 'audio/ogg',
+  '.opus': 'audio/ogg',
+  '.oga': 'audio/ogg',
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.flac': 'audio/flac',
   '.bin': 'application/octet-stream'
 };
 
+function canAccessChatMedia(chatId, userId) {
+  if (!userId) return false;
+  const chat = db.prepare('SELECT id, kind, user_a, user_b FROM chats WHERE id = ?').get(chatId);
+  if (!chat) return false;
+  if (chat.kind === 'group') {
+    const member = db
+      .prepare('SELECT 1 FROM chat_members WHERE chat_id = ? AND user_id = ?')
+      .get(chat.id, userId);
+    return !!member;
+  }
+  return chat.user_a === userId || chat.user_b === userId;
+}
+
+function fileNameForHeader(name) {
+  const clean = String(name || '')
+    .replace(/[^\p{L}\p{N}._ -]/gu, '_')
+    .replace(/\.\./g, '.')
+    .slice(0, 180);
+  return clean || 'file';
+}
+
 app.get('/api/media/*', (req, res) => {
   const rel = String(req.params[0] || '').replace(/^\/+/, '');
-  if (!/^(avatars|posts|videos|thumbs)\/[A-Za-z0-9_.-]+$/.test(rel)) {
+  const isChat = rel.startsWith('chats/');
+  const allowed = isChat
+    ? /^chats\/\d+\/[A-Za-z0-9_.-]+$/.test(rel)
+    : /^(avatars|posts|videos|thumbs)\/[A-Za-z0-9_.-]+$/.test(rel);
+  if (!allowed) {
     return res.status(403).json({ error: 'Доступ запрещён' });
+  }
+  if (isChat) {
+    const chatId = Number(rel.split('/')[1]);
+    if (!canAccessChatMedia(chatId, req.userId)) {
+      return res.status(403).json({ error: 'Нет доступа к файлу чата' });
+    }
   }
   const abs = path.join(UPLOAD_DIR, rel);
   if (!abs.startsWith(UPLOAD_DIR) || !fs.existsSync(abs)) {
     return res.status(404).json({ error: 'Файл не найден' });
   }
   const ext = path.extname(rel.replace(/\.enc$/, ''));
-  const mime = MIME_BY_EXT[ext] || 'application/octet-stream';
+  const mime = MIME_BY_EXT[ext.toLowerCase()] || 'application/octet-stream';
   const total = filePlainSize(abs);
   const cache = 'public, max-age=31536000, immutable';
+
+  const dl = req.query.name;
+  const isInline = mime.startsWith('image/') || mime.startsWith('video/') || mime.startsWith('audio/');
+  if (dl && !isInline) {
+    res.set('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(fileNameForHeader(dl))}`);
+  }
 
   const range = req.headers.range;
   if (range) {
