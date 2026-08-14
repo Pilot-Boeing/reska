@@ -1351,7 +1351,10 @@ async function openChat(chatUid) {
   function startRec(type) {
     if (recorder) return;
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
-      toast('Запись не поддерживается этим браузером', 'error');
+      const why = !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia
+        ? (window.isSecureContext ? 'нет API getUserMedia' : 'страница открыта не по HTTPS (безопасный контекст)')
+        : 'нет MediaRecorder';
+      toast('Запись не поддерживается: ' + why, 'error');
       return;
     }
     const isRound = type === 'round';
@@ -1399,7 +1402,7 @@ async function openChat(chatUid) {
         if (el) el.textContent = fmtDuration((Date.now() - recStart) / 1000);
         if (recMax && Date.now() - recStart >= recMax * 1000) stopRec(false);
       }, 250);
-    }).catch(() => toast('Нет доступа к микрофону/камере', 'error'));
+    }).catch((err) => toast('Нет доступа к микрофону/камере: ' + (err && (err.name || err.message)), 'error'));
   }
 
   function renderRecUi(isRound) {
