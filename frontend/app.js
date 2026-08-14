@@ -106,6 +106,7 @@ async function api(path, opts = {}) {
 let me = null;
 let socket = null;
 let activeChatUid = null;
+let activeChat = null;
 let chatsCache = [];
 let currentSearch = '';
 
@@ -403,7 +404,7 @@ async function connectSocket() {
     if (activeChatUid === payload.chatUid) showTyping();
   });
 
-  socket.on('chat:read', () => { loadChatBadges(); updateReadMarks(); });
+  socket.on('chat:read', () => { loadChatBadges(); if (!activeChat || activeChat.kind !== 'group') updateReadMarks(); });
 }
 
 function bumpBadge() {
@@ -1095,6 +1096,7 @@ async function viewMessages(openChatUid) {
        <aside class="chat-sidebar card" id="chat-sidebar">
          <button class="btn btn-primary btn-block" data-action="new-chat" style="margin-bottom:12px">＋ Новый чат</button>
          <button class="btn btn-block self-chat-btn" data-action="self-chat" style="margin-bottom:12px">📝 Сообщения себе</button>
+         <button class="btn btn-block" data-action="new-group" style="margin-bottom:12px">👥 Создать группу</button>
          <div id="chat-list"></div>
        </aside>
       <section class="chat-window card" id="chat-window">
@@ -1109,6 +1111,7 @@ async function viewMessages(openChatUid) {
   });
   $('[data-action="new-chat"]').addEventListener('click', openNewChatModal);
   $('[data-action="self-chat"]').addEventListener('click', startSelfChat);
+  $('[data-action="new-group"]').addEventListener('click', openNewGroupModal);
   if (openChatUid) await openChat(openChatUid);
 }
 
@@ -1121,17 +1124,23 @@ function renderChatList() {
     return;
   }
   chatsCache.forEach((c) => {
-    const isSelf = c.other && c.other.id === me.id;
-    const name = isSelf ? '📝 Сообщения себе' : c.other.name;
-    const last = isSelf && !c.last_text ? 'Заметки, избранное, черновики' : (c.last_text || 'Нет сообщений');
+    const isGroup = c.kind === 'group';
+    const isSelf = !isGroup && c.other && c.other.id === me.id;
+    const name = isGroup ? c.name : (isSelf ? '📝 Сообщения себе' : c.other.name);
+    const last = isGroup
+      ? (c.last_text || 'Группа создана')
+      : (isSelf && !c.last_text ? 'Заметки, избранное, черновики' : (c.last_text || 'Нет сообщений'));
+    const avatar = isGroup
+      ? `<span class="avatar sm group-avatar">👥</span>`
+      : `<img class="avatar sm" src="${mediaUrl(c.other.avatar)}" alt="">`;
     const el = document.createElement('div');
     el.className = 'chat-item' + (c.uid === activeChatUid ? ' active' : '') + (isSelf ? ' self' : '');
     el.dataset.chatUid = c.uid;
     el.innerHTML = `
-      <img class="avatar sm" src="${mediaUrl(c.other.avatar)}" alt="">
+      ${avatar}
       <div class="chat-item-info">
         <div class="chat-item-name">
-          <span>${esc(name)}</span>
+          <span>${esc(name)}${isGroup ? ` <span class="muted" style="font-weight:400;font-size:11px">· ${c.member_count || 1} уч.</span>` : ''}</span>
           <span class="muted" style="font-weight:400;font-size:11px">${c.last_at ? timeAgo(c.last_at) : ''}</span>
         </div>
         <div class="chat-item-last">${esc(last)}</div>
@@ -1174,25 +1183,40 @@ async function decryptMessage(m, chatUid) {
 }
 async function openChat(chatUid) {
   activeChatUid = chatUid;
+  activeChat = chatsCache.find((c) => c.uid === chatUid) || null;
   renderChatList();
   const data = await api(`/chats/${chatUid}/messages`);
-  const chat = chatsCache.find((c) => c.uid === chatUid);
+  const chat = activeChat;
+  const isGroup = !!(chat && chat.kind === 'group');
+  const isSelf = !!(chat && !isGroup && chat.other && chat.other.id === me.id);
   const win = $('#chat-window');
+  let head = '';
+  if (isGroup) {
+    head = `<span class="avatar sm group-avatar">👥</span>
+      <b>${esc(chat.name)}</b>
+      <span class="muted" style="font-size:12px">${chat.member_count || 1} участн.</span>
+      <button class="btn btn-ghost btn-sm group-members-btn" style="margin-left:auto">👥 Состав</button>`;
+  } else if (isSelf) {
+    head = `<img class="avatar sm" src="${mediaUrl(chat.other.avatar)}" alt="">
+      <b>📝 Сообщения себе</b>
+      <span class="muted">заметки · избранное · черновики</span>`;
+  } else if (chat && chat.other) {
+    head = `<a href="#/profile/${esc(chat.other.uid)}"><img class="avatar sm" src="${mediaUrl(chat.other.avatar)}" alt=""></a>
+      <b>${esc(chat.other.name)}</b>
+      <span class="e2ee-tag" title="Сообщения шифруются на вашем устройстве (E2EE)">🔒 E2EE</span>`;
+  }
   win.innerHTML = `
     <div class="chat-head">
-      ${chat ? (chat.other.id === me.id
-        ? `<img class="avatar sm" src="${mediaUrl(chat.other.avatar)}" alt="">
-      <b>📝 Сообщения себе</b>
-      <span class="muted">заметки · избранное · черновики</span>`
-        : `<a href="#/profile/${esc(chat.other.uid)}"><img class="avatar sm" src="${mediaUrl(chat.other.avatar)}" alt=""></a>
-      <b>${esc(chat.other.name)}</b>
-      <span class="e2ee-tag" title="Сообщения шифруются на вашем устройстве (E2EE)">🔒 E2EE</span>`) : ''}
+      ${head}
     </div>
     <div class="chat-messages" id="chat-messages"></div>
     <form class="chat-input" id="chat-input">
       <input type="text" placeholder="Сообщение..." autocomplete="off" maxlength="4000">
       <button type="submit" class="btn btn-primary">➤</button>
     </form>`;
+
+  const mb = $('.group-members-btn', win);
+  if (mb) mb.addEventListener('click', () => openGroupMembers(chat));
 
   const msgs = [];
   for (const m of data.messages) msgs.push(await decryptMessage(m, chatUid));
@@ -1212,15 +1236,17 @@ async function openChat(chatUid) {
     if (!text) return;
     input.value = '';
     try {
-      const other = chat && chat.other ? chat.other : null;
       let body = { text, e2ee: false };
-      const pub = other ? await otherPubKey(other.uid) : null;
-      if (pub) {
-        try {
-          const enc = await E2EE.encrypt(text, pub);
-          body = { text: JSON.stringify(enc), e2ee: true };
-        } catch (err) {
-          toast('Шифрование недоступно, отправлено открытым текстом', 'error');
+      if (!isGroup) {
+        const other = chat && chat.other ? chat.other : null;
+        const pub = other ? await otherPubKey(other.uid) : null;
+        if (pub) {
+          try {
+            const enc = await E2EE.encrypt(text, pub);
+            body = { text: JSON.stringify(enc), e2ee: true };
+          } catch (err) {
+            toast('Шифрование недоступно, отправлено открытым текстом', 'error');
+          }
         }
       }
       const res = await api(`/chats/${chatUid}/messages`, { method: 'POST', body });
@@ -1241,6 +1267,12 @@ function appendMessage(m) {
   const div = $('.msg', node);
   div.classList.toggle('mine', m.sender_id === me.id);
   div.dataset.mid = m.id;
+  if (m.sender_id !== me.id && activeChat && activeChat.kind === 'group') {
+    const author = document.createElement('span');
+    author.className = 'msg-author';
+    author.textContent = m.name || 'Пользователь';
+    div.insertBefore(author, $('.msg-bubble', node));
+  }
   $('.msg-bubble', node).textContent = m.text;
   if (m.e2eeText) $('.msg-bubble', node).classList.add('e2ee');
   if (m.edited && !m.e2eeText) $('.msg-bubble', node).textContent += ' (ред.)';
@@ -1345,8 +1377,8 @@ async function editMessage(div, m) {
     if (!val) { input.replaceWith(bubble); return; }
     try {
       let body = { text: val, e2ee: false };
-      const chat = chatsCache.find((c) => c.uid === activeChatUid);
-      const other = chat && chat.other ? chat.other : null;
+      const chat = activeChat;
+      const other = chat && chat.kind === 'dm' && chat.other ? chat.other : null;
       const pub = other ? await otherPubKey(other.uid) : null;
       if (pub) {
         try {
@@ -1409,6 +1441,7 @@ function showTyping() {
 function updateReadMarks() {
   const container = $('#chat-messages');
   if (!container) return;
+  if (activeChat && activeChat.kind === 'group') return;
   container.querySelectorAll('.msg.mine .msg-read').forEach((m) => {
     m.textContent = '✓✓';
     m.classList.add('read');
@@ -1473,6 +1506,151 @@ async function openNewChatModal() {
     const res = await api('/users?exclude=me' + (q ? `&q=${encodeURIComponent(q)}` : ''));
     renderUsers(res.users);
   });
+}
+
+async function openNewGroupModal() {
+  const data = await api('/users?exclude=me');
+  const modal = document.createElement('div');
+  modal.className = 'modal-backdrop';
+  modal.innerHTML = `
+    <div class="modal card">
+      <button class="close-x">✕</button>
+      <h2>👥 Новая группа</h2>
+      <input type="text" id="g-name" placeholder="Название группы" maxlength="80" style="margin-bottom:8px">
+      <input type="text" id="g-desc" placeholder="Описание (необязательно)" maxlength="2000" style="margin-bottom:10px">
+      <div style="margin-bottom:6px;font-size:13px;color:var(--muted)">Выберите участников</div>
+      <input type="search" placeholder="Поиск по имени или логину..." id="g-search" style="margin-bottom:12px">
+      <div id="g-user-list" style="max-height:220px;overflow-y:auto"></div>
+      <button class="btn btn-primary btn-block" id="g-create" style="margin-top:12px">Создать группу</button>
+    </div>`;
+  $('#modal-root').appendChild(modal);
+  modal.addEventListener('click', (e) => { if (e.target === modal || e.target.classList.contains('close-x')) modal.remove(); });
+
+  const selected = new Set();
+  const list = $('#g-user-list', modal);
+  function renderUsers(users) {
+    list.innerHTML = users.length ? '' : `<div class="chat-placeholder">Никого не найдено</div>`;
+    users.forEach((u) => {
+      const row = document.createElement('div');
+      row.className = 'user-row card';
+      row.style.marginBottom = '6px';
+      row.style.cursor = 'pointer';
+      row.innerHTML = `
+        <img class="avatar" src="${mediaUrl(u.avatar)}" alt="">
+        <div style="flex:1">
+          <div style="font-weight:700">${esc(u.name)}</div>
+          <div class="muted" style="font-size:12px">@${esc(u.username)}</div>
+        </div>
+        <span class="pick-check">${selected.has(u.id) ? '✓' : ''}</span>`;
+      row.addEventListener('click', () => {
+        if (selected.has(u.id)) selected.delete(u.id); else selected.add(u.id);
+        renderUsers(users);
+      });
+      list.appendChild(row);
+    });
+  }
+  renderUsers(data.users);
+
+  $('#g-search', modal).addEventListener('input', async (e) => {
+    const q = e.target.value.trim();
+    const res = await api('/users?exclude=me' + (q ? `&q=${encodeURIComponent(q)}` : ''));
+    renderUsers(res.users);
+  });
+
+  $('#g-create', modal).addEventListener('click', async () => {
+    const name = $('#g-name', modal).value.trim();
+    if (!name) return toast('Укажите название группы', 'error');
+    try {
+      const res = await api('/library/groups', {
+        method: 'POST',
+        body: { name, description: $('#g-desc', modal).value.trim(), members: [...selected] }
+      });
+      modal.remove();
+      go('/messages/' + res.group.chatUid);
+    } catch (err) { toast(err.message, 'error'); }
+  });
+}
+
+async function openGroupMembers(chat) {
+  if (!chat || !chat.group_id) return;
+  const data = await api(`/library/groups/${chat.group_id}/members`);
+  const isOwner = !!chat.is_owner;
+  const modal = document.createElement('div');
+  modal.className = 'modal-backdrop';
+  modal.innerHTML = `
+    <div class="modal card">
+      <button class="close-x">✕</button>
+      <h2>👥 ${esc(chat.name)} — участники</h2>
+      ${isOwner ? `<div style="margin-bottom:10px">
+          <input type="search" placeholder="Добавить: имя или @логин" id="gm-search" style="margin-bottom:8px">
+          <div id="gm-add-result"></div>
+        </div>` : ''}
+      <div id="gm-list" style="max-height:320px;overflow-y:auto"></div>
+    </div>`;
+  $('#modal-root').appendChild(modal);
+  modal.addEventListener('click', (e) => { if (e.target === modal || e.target.classList.contains('close-x')) modal.remove(); });
+
+  const list = $('#gm-list', modal);
+  function render(rows) {
+    list.innerHTML = '';
+    if (!rows.length) { list.innerHTML = `<div class="chat-placeholder">Участников нет</div>`; return; }
+    rows.forEach((u) => {
+      const row = document.createElement('div');
+      row.className = 'user-row card';
+      row.style.marginBottom = '6px';
+      row.innerHTML = `
+        <img class="avatar" src="${mediaUrl(u.avatar)}" alt="">
+        <div style="flex:1">
+          <div style="font-weight:700">${esc(u.name)}${u.role === 'owner' ? ' <span class="role-badge admin">СОЗДАТЕЛЬ</span>' : ''}</div>
+          <div class="muted" style="font-size:12px">@${esc(u.username)}</div>
+        </div>
+        ${isOwner && u.role !== 'owner' ? `<button class="btn btn-sm btn-ghost" data-id="${u.id}">Исключить</button>` : ''}`;
+      const kick = row.querySelector('[data-id]');
+      if (kick) {
+        kick.addEventListener('click', async () => {
+          if (!confirm(`Исключить ${u.name} из группы?`)) return;
+          try {
+            await api(`/library/groups/${chat.group_id}/members/${u.id}`, { method: 'DELETE' });
+            toast('Участник исключён');
+            openGroupMembers(chat);
+          } catch (err) { toast(err.message, 'error'); }
+        });
+      }
+      list.appendChild(row);
+    });
+  }
+  render(data.members);
+
+  if (isOwner) {
+    const s = $('#gm-search', modal);
+    const result = $('#gm-add-result', modal);
+    let timer = null;
+    s.addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        const q = s.value.trim();
+        result.innerHTML = '';
+        if (!q) return;
+        const res = await api('/users?q=' + encodeURIComponent(q)).catch(() => ({ users: [] }));
+        const existing = new Set(data.members.map((m) => m.id));
+        res.users.filter((u) => !existing.has(u.id)).slice(0, 8).forEach((u) => {
+          const b = document.createElement('button');
+          b.className = 'btn btn-sm';
+          b.style.marginRight = '6px';
+          b.style.marginBottom = '6px';
+          b.textContent = '＋ ' + u.name;
+          b.addEventListener('click', async () => {
+            try {
+              await api(`/library/groups/${chat.group_id}/members`, { method: 'POST', body: { user_id: u.id } });
+              toast('Добавлен: ' + u.name);
+              openGroupMembers(chat);
+            } catch (err) { toast(err.message, 'error'); }
+          });
+          result.appendChild(b);
+        });
+      }, 300);
+    });
+  }
 }
 /* =========================================================
    ПРОФИЛЬ
@@ -1956,15 +2134,19 @@ async function viewGroups() {
 
 function groupCard(g) {
   const el = document.createElement('div');
-  el.className = 'note-card card';
+  el.className = 'note-card card group-card';
   el.innerHTML = `
     <h3>${esc(g.name)}</h3>
     <p>${esc(g.description)}</p>
-    <div class="note-date muted">${timeAgo(g.updated_at)}</div>
+    <div class="note-date muted">👥 ${g.member_count || 1} участн. · ${timeAgo(g.updated_at)}</div>
     <div class="note-actions">
+      <button class="btn btn-ghost btn-sm" data-act="go">Перейти в чат</button>
       <button class="btn btn-ghost btn-sm" data-act="edit">✏</button>
       <button class="btn btn-ghost btn-sm" data-act="del">🗑</button>
     </div>`;
+  el.querySelector('[data-act="go"]').addEventListener('click', () => {
+    if (g.chatUid) go('/messages/' + g.chatUid);
+  });
   el.querySelector('[data-act="edit"]').addEventListener('click', () => groupEditor(g));
   el.querySelector('[data-act="del"]').addEventListener('click', async () => {
     if (!confirm('Удалить группу?')) return;
@@ -1994,7 +2176,13 @@ function groupEditor(g) {
     const fd = new FormData(e.target);
     try {
       if (g) await api('/library/groups/' + g.id, { method: 'PUT', body: { name: fd.get('name'), description: fd.get('description') } });
-      else await api('/library/groups', { method: 'POST', body: { name: fd.get('name'), description: fd.get('description') } });
+      else {
+        const res = await api('/library/groups', { method: 'POST', body: { name: fd.get('name'), description: fd.get('description') } });
+        modal.remove();
+        toast('Группа создана');
+        if (res.group.chatUid) go('/messages/' + res.group.chatUid);
+        return;
+      }
       modal.remove(); viewGroups(); toast('Группа сохранена');
     } catch (err) { toast(err.message, 'error'); }
   });
@@ -2128,7 +2316,7 @@ async function logout() {
   unregisterPushToken();
   try { await api('/auth/logout', { method: 'POST', silent: true }); } catch (e) {}
   if (socket) { socket.disconnect(); socket = null; }
-  me = null; activeChatUid = null; chatsCache = [];
+  me = null; activeChatUid = null; activeChat = null; chatsCache = [];
   $('#view').innerHTML = '';
   showAuth();
 }

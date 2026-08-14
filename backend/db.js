@@ -165,9 +165,19 @@ CREATE TABLE IF NOT EXISTS chats (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   uid TEXT UNIQUE,
   user_a INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  user_b INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_b INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL DEFAULT 'dm',
+  group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (user_a, user_b)
+);
+
+CREATE TABLE IF NOT EXISTS chat_members (
+  chat_id INTEGER NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL DEFAULT 'member',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (chat_id, user_id)
 );
 
 CREATE TABLE IF NOT EXISTS messages (
@@ -259,6 +269,43 @@ function ensureUid(table) {
   for (const r of rows) upd.run(randomUid(), r.id);
 }
 
+/**
+ * Старые БД создавались с `user_b INTEGER NOT NULL`. Для групповых чатов
+ * user_b = NULL (нет второго собеседника), поэтому пересобираем таблицу.
+ */
+function rebuildChatsForGroups() {
+  const cols = db.prepare('PRAGMA table_info(chats)').all();
+  const ub = cols.find((c) => c.name === 'user_b');
+  if (!ub || !ub.notnull) return;
+  db.exec('PRAGMA foreign_keys = OFF');
+  db.exec('BEGIN');
+  try {
+    db.exec(`CREATE TABLE chats_new (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      uid TEXT UNIQUE,
+      user_a INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      user_b INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL DEFAULT 'dm',
+      group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE (user_a, user_b)
+    )`);
+    db.exec(`INSERT INTO chats_new (id, uid, user_a, user_b, kind, group_id, created_at)
+             SELECT id, uid, user_a, user_b, kind, group_id, created_at FROM chats`);
+    db.exec('DROP TABLE chats');
+    db.exec('ALTER TABLE chats_new RENAME TO chats');
+    db.exec('COMMIT');
+  } catch (e) {
+    try { db.exec('ROLLBACK'); } catch (e2) {}
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON');
+  }
+  try {
+    db.exec("DELETE FROM sqlite_sequence WHERE name = 'chats'");
+    db.exec("INSERT INTO sqlite_sequence (name, seq) SELECT 'chats', COALESCE(MAX(id), 0) FROM chats");
+  } catch (e) {}
+}
+
 function migrate() {
   addColumn('users', 'uid', 'TEXT');
   addColumn('users', 'password_changed_at', 'TEXT');
@@ -270,6 +317,8 @@ function migrate() {
   addColumn('videos', 'uid', 'TEXT');
   addColumn('comments', 'uid', 'TEXT');
   addColumn('chats', 'uid', 'TEXT');
+  addColumn('chats', 'kind', "TEXT NOT NULL DEFAULT 'dm'");
+  addColumn('chats', 'group_id', 'INTEGER');
   addColumn('messages', 'e2ee', 'INTEGER NOT NULL DEFAULT 0');
   addColumn('messages', 'edited', 'INTEGER NOT NULL DEFAULT 0');
   addColumn('sessions', 'device_id', 'TEXT');
@@ -278,6 +327,8 @@ function migrate() {
   addColumn('sessions', 'expires_at', 'TEXT');
 
   for (const t of ['users', 'posts', 'videos', 'comments', 'chats']) ensureUid(t);
+
+  rebuildChatsForGroups();
 
   // нормализация логинов в нижний регистр (раньше логин был чувствителен к регистру)
   try {

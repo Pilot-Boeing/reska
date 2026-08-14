@@ -11,16 +11,34 @@ const router = express.Router();
 function chatForUser(id, userId) {
   const chat = findByIdOrUid('chats', id);
   if (!chat) return null;
+  if (chat.kind === 'group') {
+    if (chat.user_a === userId) return chat;
+    const member = db.prepare('SELECT 1 FROM chat_members WHERE chat_id = ? AND user_id = ?').get(chat.id, userId);
+    return member ? chat : null;
+  }
   if (chat.user_a !== userId && chat.user_b !== userId) return null;
   return chat;
+}
+
+function otherIds(chat, userId) {
+  if (chat.kind === 'group') {
+    return db
+      .prepare('SELECT user_id FROM chat_members WHERE chat_id = ? AND user_id != ?')
+      .all(chat.id, userId)
+      .map((r) => r.user_id);
+  }
+  const other = chat.user_a === userId ? chat.user_b : chat.user_a;
+  return other ? [other] : [];
 }
 
 router.get('/', auth, (req, res) => {
   const me = req.userId;
   const rows = db
     .prepare(
-      `SELECT c.id, c.uid, c.created_at,
+      `SELECT c.id, c.uid, c.kind, c.group_id, c.user_a, c.created_at,
               u.id AS other_id, u.username, u.name, u.avatar,
+              g.name AS group_name, g.description AS group_description,
+              (SELECT COUNT(*) FROM chat_members cm WHERE cm.chat_id = c.id) AS member_count,
               (SELECT CASE WHEN m.e2ee = 1 THEN '🔒 Зашифровано' ELSE m.text END
                  FROM messages m WHERE m.chat_id = c.id ORDER BY m.id DESC LIMIT 1) AS last_text,
               (SELECT m.created_at FROM messages m WHERE m.chat_id = c.id
@@ -28,21 +46,35 @@ router.get('/', auth, (req, res) => {
               (SELECT COUNT(*) FROM messages m
                  WHERE m.chat_id = c.id AND m.sender_id != ? AND m.read = 0) AS unread
        FROM chats c
-       JOIN users u ON u.id = CASE WHEN c.user_a = ? THEN c.user_b ELSE c.user_a END
-       WHERE c.user_a = ? OR c.user_b = ?
+       LEFT JOIN users u ON u.id = CASE WHEN c.user_a = ? THEN c.user_b ELSE c.user_a END
+       LEFT JOIN groups g ON g.id = c.group_id
+       WHERE c.user_a = ? OR c.user_b = ? OR c.id IN (SELECT chat_id FROM chat_members WHERE user_id = ?)
        ORDER BY last_at DESC`
     )
-    .all(me, me, me, me);
+    .all(me, me, me, me, me);
   res.json({
-    chats: rows.map((r) => ({
-      id: r.id,
-      uid: r.uid,
-      created_at: r.created_at,
-      other: publicUser(r),
-      last_text: r.last_text || '',
-      last_at: r.last_at,
-      unread: r.unread || 0
-    }))
+    chats: rows.map((r) => {
+      const base = {
+        id: r.id,
+        uid: r.uid,
+        kind: r.kind,
+        created_at: r.created_at,
+        last_text: r.last_text || '',
+        last_at: r.last_at,
+        unread: r.unread || 0
+      };
+      if (r.kind === 'group') {
+        return {
+          ...base,
+          group_id: r.group_id,
+          name: r.group_name || 'Группа',
+          description: r.group_description || '',
+          member_count: r.member_count || 1,
+          is_owner: r.user_a === me
+        };
+      }
+      return { ...base, other: publicUser(r) };
+    })
   });
 });
 
@@ -103,9 +135,12 @@ function socketFor(io, otherId) {
 router.post('/:id/typing', auth, (req, res) => {
   const chat = chatForUser(req.params.id, req.userId);
   if (!chat) return res.status(403).json({ error: 'Нет доступа к чату' });
-  const otherId = chat.user_a === req.userId ? chat.user_b : chat.user_a;
   const io = req.app.get('io');
-  if (io) io.to(`user:${otherId}`).emit('chat:typing', { chatId: chat.id, chatUid: chat.uid, userId: req.userId });
+  if (io) {
+    otherIds(chat, req.userId).forEach((id) =>
+      io.to(`user:${id}`).emit('chat:typing', { chatId: chat.id, chatUid: chat.uid, userId: req.userId })
+    );
+  }
   res.json({ ok: true });
 });
 
@@ -123,7 +158,8 @@ router.post('/:id/messages', auth, (req, res) => {
   const chat = chatForUser(req.params.id, req.userId);
   if (!chat) return res.status(403).json({ error: 'Нет доступа к чату' });
 
-  const e2ee = req.body.e2ee === true || req.body.e2ee === 1 || req.body.e2ee === '1' ? 1 : 0;
+  const isGroup = chat.kind === 'group';
+  const e2ee = !isGroup && (req.body.e2ee === true || req.body.e2ee === 1 || req.body.e2ee === '1') ? 1 : 0;
   let text;
   if (e2ee) {
     text = String(req.body.text || '').slice(0, 20000); // шифротекст не трогаем
@@ -140,24 +176,29 @@ router.post('/:id/messages', auth, (req, res) => {
     req.userId
   );
 
-  const otherId = chat.user_a === req.userId ? chat.user_b : chat.user_a;
+  const targets = otherIds(chat, req.userId);
   const io = req.app.get('io');
-  const payload = { message, chatId: chat.id, chatUid: chat.uid, otherId };
+  const payload = { message, chatId: chat.id, chatUid: chat.uid };
   if (io) {
     io.to(`user:${req.userId}`).emit('chat:message', payload);
-    io.to(`user:${otherId}`).emit('chat:message', payload);
+    targets.forEach((id) => io.to(`user:${id}`).emit('chat:message', payload));
   }
   const preview = e2ee
     ? '🔒 Зашифрованное сообщение'
     : String(text).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
-  notifyUser(
-    otherId,
-    {
-      title: req.user.name,
-      body: preview,
-      data: { url: `messages/${chat.uid}` }
-    },
-    req.app.get('onlineUsers')
+  const title = isGroup
+    ? (db.prepare('SELECT name FROM groups WHERE id = ?').get(chat.group_id) || {}).name || 'Группа'
+    : req.user.name;
+  targets.forEach((id) =>
+    notifyUser(
+      id,
+      {
+        title,
+        body: preview,
+        data: { url: `messages/${chat.uid}` }
+      },
+      req.app.get('onlineUsers')
+    )
   );
   log('message', { req, userId: req.userId, meta: { chatId: chat.id, e2ee } });
   res.status(201).json({ message });
@@ -169,9 +210,8 @@ router.post('/:id/read', auth, (req, res) => {
   db.prepare(
     'UPDATE messages SET read = 1 WHERE chat_id = ? AND sender_id != ? AND read = 0'
   ).run(chat.id, req.userId);
-  const otherId = chat.user_a === req.userId ? chat.user_b : chat.user_a;
   const io = req.app.get('io');
-  if (io) io.to(`user:${otherId}`).emit('chat:read', { chatId: chat.id, readerId: req.userId });
+  if (io) otherIds(chat, req.userId).forEach((id) => io.to(`user:${id}`).emit('chat:read', { chatId: chat.id, readerId: req.userId }));
   res.json({ ok: true });
 });
 
@@ -194,12 +234,11 @@ router.patch('/:id/messages/:mid', auth, (req, res) => {
     db.prepare(`${MESSAGE_QUERY} WHERE m.id = ?`).get(msg.id),
     req.userId
   );
-  const otherId = chat.user_a === req.userId ? chat.user_b : chat.user_a;
   const io = req.app.get('io');
-  const payload = { message: updated, chatId: chat.id, chatUid: chat.uid, otherId, action: 'edit' };
+  const payload = { message: updated, chatId: chat.id, chatUid: chat.uid, action: 'edit' };
   if (io) {
     io.to(`user:${req.userId}`).emit('chat:message', payload);
-    io.to(`user:${otherId}`).emit('chat:message', payload);
+    otherIds(chat, req.userId).forEach((id) => io.to(`user:${id}`).emit('chat:message', payload));
   }
   log('message_edit', { req, userId: req.userId, meta: { chatId: chat.id, messageId: msg.id } });
   res.json({ message: updated });
@@ -215,12 +254,11 @@ router.delete('/:id/messages/:mid', auth, (req, res) => {
   }
   db.prepare('DELETE FROM message_reactions WHERE message_id = ?').run(msg.id);
   db.prepare('DELETE FROM messages WHERE id = ?').run(msg.id);
-  const otherId = chat.user_a === req.userId ? chat.user_b : chat.user_a;
   const io = req.app.get('io');
-  const payload = { messageId: msg.id, chatId: chat.id, chatUid: chat.uid, otherId, action: 'delete' };
+  const payload = { messageId: msg.id, chatId: chat.id, chatUid: chat.uid, action: 'delete' };
   if (io) {
     io.to(`user:${req.userId}`).emit('chat:message', payload);
-    io.to(`user:${otherId}`).emit('chat:message', payload);
+    otherIds(chat, req.userId).forEach((id) => io.to(`user:${id}`).emit('chat:message', payload));
   }
   log('message_delete', { req, userId: req.userId, meta: { chatId: chat.id, messageId: msg.id } });
   res.json({ ok: true });
@@ -239,12 +277,11 @@ router.post('/:id/messages/:mid/reaction', auth, (req, res) => {
     db.prepare(`${MESSAGE_QUERY} WHERE m.id = ?`).get(msg.id),
     req.userId
   );
-  const otherId = chat.user_a === req.userId ? chat.user_b : chat.user_a;
   const io = req.app.get('io');
-  const payload = { message: updated, chatId: chat.id, chatUid: chat.uid, otherId, action: 'reaction' };
+  const payload = { message: updated, chatId: chat.id, chatUid: chat.uid, action: 'reaction' };
   if (io) {
     io.to(`user:${req.userId}`).emit('chat:message', payload);
-    io.to(`user:${otherId}`).emit('chat:message', payload);
+    otherIds(chat, req.userId).forEach((id) => io.to(`user:${id}`).emit('chat:message', payload));
   }
   res.json({ message: updated });
 });

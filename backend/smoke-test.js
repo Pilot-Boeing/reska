@@ -303,6 +303,7 @@ async function main() {
   const jarA2 = {};
   r = await api('POST', '/api/auth/login', { body: { username: 'u_admin', password: 'newpass99' }, jar: jarA2 });
   merge(jarA2, jarFrom(r.res));
+  const adminId = r.data.user.id;
   r = await api('POST', '/api/library/notes', { body: { title: 'note-admin' }, jar: jarA2 });
   const noteAdmin = r.data.note;
   r = await api('PUT', `/api/library/notes/${noteAdmin.id}`, { body: { title: 'hack' }, jar: jarB });
@@ -311,10 +312,43 @@ async function main() {
   check('чужой конспект нельзя удалять', r.res.status === 403, String(r.res.status));
 
   r = await api('POST', '/api/library/groups', { body: { name: 'Группа А', description: 'описание' }, jar: jarB });
-  check('создание группы', r.res.status === 201 && r.data.group.name === 'Группа А', String(r.res.status));
+  check('создание группы', r.res.status === 201 && r.data.group.name === 'Группа А' && !!r.data.group.chatUid, String(r.res.status));
   const groupId = r.data.group.id;
+  const groupChatUid = r.data.group.chatUid;
   r = await api('PUT', `/api/library/groups/${groupId}`, { body: { name: 'Группа Б' }, jar: jarB });
   check('обновление группы', r.res.status === 200 && r.data.group.name === 'Группа Б');
+
+  r = await api('POST', `/api/library/groups/${groupId}/members`, { body: { user_id: adminId }, jar: jarB });
+  check('добавление участника создателем', r.res.status === 200, String(r.res.status));
+  r = await api('GET', `/api/library/groups/${groupId}/members`, { jar: jarA2 });
+  check('состав группы виден участнику', r.res.status === 200 && r.data.members.length === 2);
+  r = await api('POST', `/api/library/groups/${groupId}/members`, { body: { user_id: adminId }, jar: jarA2 });
+  check('добавлять участника может только создатель', r.res.status === 403, String(r.res.status));
+
+  r = await api('GET', `/api/chats/${groupChatUid}/messages`, { jar: jarA2 });
+  check('участник видит чат группы', r.res.status === 200 && Array.isArray(r.data.messages));
+  r = await api('POST', `/api/chats/${groupChatUid}/messages`, { body: { text: 'привет всем' }, jar: jarA2 });
+  check('участник пишет в группу', r.res.status === 201, String(r.res.status));
+  r = await api('GET', '/api/chats', { jar: jarA2 });
+  const groupInChats = r.data.chats.find((c) => c.uid === groupChatUid);
+  check('группа в списке чатов участника', !!(groupInChats && groupInChats.kind === 'group'));
+
+  const jarC = {};
+  r = await api('GET', '/api/auth/captcha');
+  const cap3 = r.data;
+  r = await api('POST', '/api/auth/register', {
+    body: { username: 'u_outsider', password: 'Password123', name: 'Outsider', captcha_token: cap3.token, captcha_answer: captchaAnswer(cap3.text) },
+    jar: jarC
+  });
+  merge(jarC, jarFrom(r.res));
+  r = await api('GET', `/api/chats/${groupChatUid}/messages`, { jar: jarC });
+  check('не участник не видит чат группы', r.res.status === 403, String(r.res.status));
+
+  r = await api('DELETE', `/api/library/groups/${groupId}/members/${adminId}`, { jar: jarB });
+  check('исключение участника создателем', r.res.status === 200);
+  r = await api('GET', `/api/chats/${groupChatUid}/messages`, { jar: jarA2 });
+  check('исключённый теряет доступ', r.res.status === 403, String(r.res.status));
+
   r = await api('DELETE', `/api/library/groups/${groupId}`, { jar: jarB });
   check('удаление группы', r.res.status === 200);
 
