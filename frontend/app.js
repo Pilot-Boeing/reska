@@ -420,6 +420,19 @@ async function connectSocket() {
   });
 
   socket.on('chat:read', () => { loadChatBadges(); if (!activeChat || activeChat.kind !== 'group') updateReadMarks(); });
+
+  socket.on('chat:deleted', (payload) => {
+    chatsCache = chatsCache.filter((c) => c.uid !== payload.chatUid);
+    if (activeChatUid === payload.chatUid) {
+      activeChatUid = null;
+      activeChat = null;
+      go('/messages');
+      toast('Чат был удалён', 'error');
+    } else {
+      renderChatList();
+    }
+    loadChatBadges();
+  });
 }
 
 function bumpBadge() {
@@ -1210,15 +1223,18 @@ async function openChat(chatUid) {
   if (isGroup) {
     head = `<b>${esc(chat.name)}</b>
       <span class="muted" style="font-size:12px">${chat.member_count || 1} участн.</span>
-      <button class="btn btn-ghost btn-sm group-members-btn" style="margin-left:auto">👥 Состав</button>`;
+      <button class="btn btn-ghost btn-sm group-members-btn" style="margin-left:auto">👥 Состав</button>
+      <button class="btn btn-ghost btn-sm chat-del" title="Удалить группу">🗑</button>`;
   } else if (isSelf) {
     head = `<img class="avatar sm" src="${mediaUrl(chat.other.avatar)}" alt="">
       <b>📝 Сообщения себе</b>
-      <span class="muted">заметки · избранное · черновики</span>`;
+      <span class="muted">заметки · избранное · черновики</span>
+      <button class="btn btn-ghost btn-sm chat-del" style="margin-left:auto" title="Удалить чат">🗑</button>`;
   } else if (chat && chat.other) {
     head = `<a href="#/profile/${esc(chat.other.uid)}"><img class="avatar sm" src="${mediaUrl(chat.other.avatar)}" alt=""></a>
       <b>${esc(chat.other.name)}</b>
-      <span class="e2ee-tag" title="Сообщения шифруются на вашем устройстве (E2EE)">🔒 E2EE</span>`;
+      <span class="e2ee-tag" title="Сообщения шифруются на вашем устройстве (E2EE)">🔒 E2EE</span>
+      <button class="btn btn-ghost btn-sm chat-del" title="Удалить чат">🗑</button>`;
   }
   view.innerHTML = `
     <div class="chat-screen card">
@@ -1236,6 +1252,8 @@ async function openChat(chatUid) {
   $('.chat-back', view).addEventListener('click', () => go('/messages'));
   const mb = $('.group-members-btn', view);
   if (mb) mb.addEventListener('click', () => openGroupMembers(chat));
+  const del = $('.chat-del', view);
+  if (del) del.addEventListener('click', () => deleteChat(chat, isGroup));
 
   const msgs = [];
   for (const m of data.messages) msgs.push(await decryptMessage(m, chatUid));
@@ -1277,6 +1295,21 @@ async function openChat(chatUid) {
   });
 
   markChatRead(chatUid);
+}
+
+async function deleteChat(chat, isGroup) {
+  if (!chat) return;
+  const label = isGroup ? 'группу' : 'чат';
+  const who = isGroup ? chat.name : (chat.other ? chat.other.name : '');
+  if (!confirm(`Удалить ${label} «${who}»? Все сообщения будут удалены.`)) return;
+  try {
+    await api('/chats/' + chat.uid, { method: 'DELETE' });
+    toast(isGroup ? 'Группа удалена' : 'Чат удалён');
+    chatsCache = chatsCache.filter((c) => c.uid !== chat.uid);
+    activeChatUid = null;
+    activeChat = null;
+    go('/messages');
+  } catch (err) { toast(err.message, 'error'); }
 }
 
 function appendMessage(m) {

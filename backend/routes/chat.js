@@ -286,4 +286,27 @@ router.post('/:id/messages/:mid/reaction', auth, (req, res) => {
   res.json({ message: updated });
 });
 
+router.delete('/:id', auth, (req, res) => {
+  const chat = findByIdOrUid('chats', req.params.id);
+  if (!chat) return res.status(404).json({ error: 'Чат не найден' });
+  const io = req.app.get('io');
+  if (chat.kind === 'group') {
+    if (chat.user_a !== req.userId) return res.status(403).json({ error: 'Только создатель удаляет группу' });
+    const targets = otherIds(chat, req.userId);
+    db.prepare('DELETE FROM chats WHERE id = ?').run(chat.id);
+    db.prepare('DELETE FROM groups WHERE id = ?').run(chat.group_id);
+    if (io) targets.forEach((id) => io.to(`user:${id}`).emit('chat:deleted', { chatId: chat.id, chatUid: chat.uid }));
+    log('group_delete', { req, userId: req.userId, meta: { groupId: chat.group_id } });
+  } else {
+    if (chat.user_a !== req.userId && chat.user_b !== req.userId) {
+      return res.status(403).json({ error: 'Нет доступа к чату' });
+    }
+    const targets = otherIds(chat, req.userId);
+    db.prepare('DELETE FROM chats WHERE id = ?').run(chat.id);
+    if (io) targets.forEach((id) => io.to(`user:${id}`).emit('chat:deleted', { chatId: chat.id, chatUid: chat.uid }));
+    log('chat_delete', { req, userId: req.userId, meta: { chatId: chat.id } });
+  }
+  res.json({ ok: true });
+});
+
 module.exports = router;

@@ -341,6 +341,7 @@ async function main() {
     jar: jarC
   });
   merge(jarC, jarFrom(r.res));
+  const outsiderId = r.data.user.id;
   r = await api('GET', `/api/chats/${groupChatUid}/messages`, { jar: jarC });
   check('не участник не видит чат группы', r.res.status === 403, String(r.res.status));
 
@@ -351,6 +352,28 @@ async function main() {
 
   r = await api('DELETE', `/api/library/groups/${groupId}`, { jar: jarB });
   check('удаление группы', r.res.status === 200);
+
+  /* 18. удаление чатов */
+  r = await api('POST', '/api/chats', { body: { user_id: outsiderId }, jar: jarA2 });
+  check('чат с аутсайдером создан', r.res.status === 201 && !!r.data.uid, String(r.res.status));
+  const dmUid = r.data.uid;
+  r = await api('DELETE', `/api/chats/${dmUid}`, { jar: jarB });
+  check('удалять чужой чат нельзя', r.res.status === 403, String(r.res.status));
+  r = await api('DELETE', `/api/chats/${dmUid}`, { jar: jarA2 });
+  check('удаление личного чата', r.res.status === 200, String(r.res.status));
+  r = await api('GET', '/api/chats', { jar: jarA2 });
+  check('чат исчез из списка', !r.data.chats.some((c) => c.uid === dmUid));
+
+  r = await api('POST', '/api/library/groups', { body: { name: 'Группа У' }, jar: jarB });
+  check('группа для удаления создана', r.res.status === 201 && !!r.data.group.chatUid, String(r.res.status));
+  const gdelId = r.data.group.id;
+  const gdelChat = r.data.group.chatUid;
+  r = await api('DELETE', `/api/chats/${gdelChat}`, { jar: jarA2 });
+  check('не создатель не удалит группу', r.res.status === 403, String(r.res.status));
+  r = await api('DELETE', `/api/chats/${gdelChat}`, { jar: jarB });
+  check('удаление группы через чат', r.res.status === 200, String(r.res.status));
+  r = await api('GET', '/api/library/groups', { jar: jarB });
+  check('группа исчезла из списка', !r.data.groups.some((g) => g.id === gdelId));
 
   server.kill();
   await new Promise((res) => server.once('exit', res));
