@@ -46,6 +46,21 @@ function timeAgo(dateStr) {
   return d.toLocaleDateString('ru-RU');
 }
 
+function fmtTime(iso) {
+  if (!iso) return '';
+  const d = /T/.test(iso) ? new Date(iso) : new Date(iso.replace(' ', 'T') + 'Z');
+  const pad = (n) => String(n).padStart(2, '0');
+  const hm = pad(d.getHours()) + ':' + pad(d.getMinutes());
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return 'сегодня, ' + hm;
+  const y = new Date(now);
+  y.setDate(now.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return 'вчера, ' + hm;
+  const dm = pad(d.getDate()) + '.' + pad(d.getMonth() + 1);
+  if (d.getFullYear() === now.getFullYear()) return dm + ', ' + hm;
+  return dm + '.' + String(d.getFullYear()).slice(2) + ', ' + hm;
+}
+
 function fmtViews(n) {
   n = Number(n) || 0;
   if (n >= 1e6) return (n / 1e6).toFixed(1).replace('.0', '') + 'M';
@@ -1090,18 +1105,21 @@ async function viewMessages(openChatUid) {
   if (total > 0) { badge.textContent = total > 99 ? '99+' : total; badge.classList.remove('hidden'); }
   else badge.classList.add('hidden');
 
+  if (openChatUid) {
+    await openChat(openChatUid);
+    return;
+  }
+
   const view = $('#view');
   view.innerHTML = `
-    <div class="messenger">
-       <aside class="chat-sidebar card" id="chat-sidebar">
-         <button class="btn btn-primary btn-block" data-action="new-chat" style="margin-bottom:12px">＋ Новый чат</button>
-         <button class="btn btn-block self-chat-btn" data-action="self-chat" style="margin-bottom:12px">📝 Сообщения себе</button>
-         <button class="btn btn-block" data-action="new-group" style="margin-bottom:12px">👥 Создать группу</button>
-         <div id="chat-list"></div>
-       </aside>
-      <section class="chat-window card" id="chat-window">
-        <div class="chat-placeholder">Выберите чат или создайте новый</div>
-      </section>
+    <div class="chat-list-screen card">
+      <div class="chat-list-head">
+        <div class="page-title" style="margin:0">💬 Чаты</div>
+      </div>
+      <button class="btn btn-primary btn-block" data-action="new-chat">＋ Новый чат</button>
+      <button class="btn btn-block self-chat-btn" data-action="self-chat">📝 Сообщения себе</button>
+      <button class="btn btn-block" data-action="new-group">👥 Создать группу</button>
+      <div id="chat-list"></div>
     </div>`;
 
   renderChatList();
@@ -1112,7 +1130,6 @@ async function viewMessages(openChatUid) {
   $('[data-action="new-chat"]').addEventListener('click', openNewChatModal);
   $('[data-action="self-chat"]').addEventListener('click', startSelfChat);
   $('[data-action="new-group"]').addEventListener('click', openNewGroupModal);
-  if (openChatUid) await openChat(openChatUid);
 }
 
 function renderChatList() {
@@ -1141,7 +1158,7 @@ function renderChatList() {
       <div class="chat-item-info">
         <div class="chat-item-name">
           <span>${esc(name)}${isGroup ? ` <span class="muted" style="font-weight:400;font-size:11px">· ${c.member_count || 1} уч.</span>` : ''}</span>
-          <span class="muted" style="font-weight:400;font-size:11px">${c.last_at ? timeAgo(c.last_at) : ''}</span>
+          <span class="muted" style="font-weight:400;font-size:11px">${c.last_at ? fmtTime(c.last_at) : ''}</span>
         </div>
         <div class="chat-item-last">${esc(last)}</div>
       </div>
@@ -1184,16 +1201,14 @@ async function decryptMessage(m, chatUid) {
 async function openChat(chatUid) {
   activeChatUid = chatUid;
   activeChat = chatsCache.find((c) => c.uid === chatUid) || null;
-  renderChatList();
   const data = await api(`/chats/${chatUid}/messages`);
   const chat = activeChat;
   const isGroup = !!(chat && chat.kind === 'group');
   const isSelf = !!(chat && !isGroup && chat.other && chat.other.id === me.id);
-  const win = $('#chat-window');
+  const view = $('#view');
   let head = '';
   if (isGroup) {
-    head = `<span class="avatar sm group-avatar">👥</span>
-      <b>${esc(chat.name)}</b>
+    head = `<b>${esc(chat.name)}</b>
       <span class="muted" style="font-size:12px">${chat.member_count || 1} участн.</span>
       <button class="btn btn-ghost btn-sm group-members-btn" style="margin-left:auto">👥 Состав</button>`;
   } else if (isSelf) {
@@ -1205,17 +1220,21 @@ async function openChat(chatUid) {
       <b>${esc(chat.other.name)}</b>
       <span class="e2ee-tag" title="Сообщения шифруются на вашем устройстве (E2EE)">🔒 E2EE</span>`;
   }
-  win.innerHTML = `
-    <div class="chat-head">
-      ${head}
-    </div>
-    <div class="chat-messages" id="chat-messages"></div>
-    <form class="chat-input" id="chat-input">
-      <input type="text" placeholder="Сообщение..." autocomplete="off" maxlength="4000">
-      <button type="submit" class="btn btn-primary">➤</button>
-    </form>`;
+  view.innerHTML = `
+    <div class="chat-screen card">
+      <div class="chat-head">
+        <button class="btn btn-ghost btn-sm chat-back" title="Назад к чатам">←</button>
+        ${head}
+      </div>
+      <div class="chat-messages" id="chat-messages"></div>
+      <form class="chat-input" id="chat-input">
+        <input type="text" placeholder="Сообщение..." autocomplete="off" maxlength="4000">
+        <button type="submit" class="btn btn-primary">➤</button>
+      </form>
+    </div>`;
 
-  const mb = $('.group-members-btn', win);
+  $('.chat-back', view).addEventListener('click', () => go('/messages'));
+  const mb = $('.group-members-btn', view);
   if (mb) mb.addEventListener('click', () => openGroupMembers(chat));
 
   const msgs = [];
@@ -1224,12 +1243,12 @@ async function openChat(chatUid) {
   scrollChat();
 
   typingTimer = null;
-  const chatInput = $('input', win);
+  const chatInput = $('input', view);
   chatInput.addEventListener('input', () => {
     if (chatInput.value.trim() && !typingTimer) sendTyping(chatUid);
   });
 
-  $('#chat-input').addEventListener('submit', async (e) => {
+  $('#chat-input', view).addEventListener('submit', async (e) => {
     e.preventDefault();
     const input = $('input', e.target);
     const text = input.value.trim();
@@ -1267,17 +1286,18 @@ function appendMessage(m) {
   const div = $('.msg', node);
   div.classList.toggle('mine', m.sender_id === me.id);
   div.dataset.mid = m.id;
-  if (m.sender_id !== me.id && activeChat && activeChat.kind === 'group') {
+  if (activeChat && activeChat.kind === 'group') {
     const author = document.createElement('span');
     author.className = 'msg-author';
-    author.textContent = m.name || 'Пользователь';
+    author.textContent = m.sender_id === me.id ? (me.name || 'Вы') : (m.name || 'Пользователь');
     div.insertBefore(author, $('.msg-bubble', node));
   }
   $('.msg-bubble', node).textContent = m.text;
   if (m.e2eeText) $('.msg-bubble', node).classList.add('e2ee');
   if (m.edited && !m.e2eeText) $('.msg-bubble', node).textContent += ' (ред.)';
   const time = $('.msg-time', node);
-  time.textContent = timeAgo(m.created_at);
+  time.textContent = fmtTime(m.created_at);
+  time.title = m.created_at;
   if (m.sender_id === me.id) {
     const mark = document.createElement('span');
     mark.className = 'msg-read sent';
