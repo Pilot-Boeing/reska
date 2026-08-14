@@ -16,6 +16,7 @@
   "dependencies": {
     "@capacitor/android": "^8.5.0",
     "@capacitor/core": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
     "@capacitor/push-notifications": "^8.1.2",
     "bcryptjs": "^2.4.3",
     "express": "^4.19.2",
