@@ -10,7 +10,7 @@ const { getClientIp } = require('../security');
 const { encryptBuffer } = require('../encryption');
 const { randomUid } = require('../security');
 const { log } = require('../logger');
-const { notifyUser, notifyFollowers } = require('../fcm');
+const { notify, notifyFollowers } = require('../notif');
 
 const router = express.Router();
 
@@ -119,11 +119,10 @@ router.post('/:id/like', auth, (req, res) => {
   db.prepare('INSERT OR IGNORE INTO video_likes (video_id, user_id) VALUES (?, ?)').run(v.id, req.userId);
   const n = db.prepare('SELECT COUNT(*) AS n FROM video_likes WHERE video_id = ?').get(v.id).n;
   if (v.user_id !== req.userId) {
-    notifyUser(
-      v.user_id,
-      { title: req.user.name, body: 'лайкнул(а) ваше видео', data: { url: `watch/${v.uid}` } },
-      req.app.get('onlineUsers')
-    );
+    notify(req.app, v.user_id, req.user, 'like', {
+      body: 'лайкнул(а) ваше видео',
+      url: `watch/${v.uid}`
+    });
   }
   res.json({ liked: true, likes: n });
 });
@@ -166,20 +165,18 @@ router.post('/:id/comments', auth, (req, res) => {
     .get(Number(r.lastInsertRowid));
   const short = row.text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
   if (video.user_id !== req.userId) {
-    notifyUser(
-      video.user_id,
-      { title: req.user.name, body: `комментарий: ${short}`, data: { url: `watch/${video.uid}` } },
-      req.app.get('onlineUsers')
-    );
+    notify(req.app, video.user_id, req.user, 'comment', {
+      body: `комментарий: ${short}`,
+      url: `watch/${video.uid}`
+    });
   }
   if (parentId) {
     const parent = db.prepare('SELECT user_id FROM comments WHERE id = ?').get(parentId);
     if (parent && parent.user_id !== req.userId && parent.user_id !== video.user_id) {
-      notifyUser(
-        parent.user_id,
-        { title: req.user.name, body: `ответил(а): ${short}`, data: { url: `watch/${video.uid}` } },
-        req.app.get('onlineUsers')
-      );
+      notify(req.app, parent.user_id, req.user, 'comment', {
+        body: `ответил(а): ${short}`,
+        url: `watch/${video.uid}`
+      });
     }
   }
   res.status(201).json({ comment: row });

@@ -1,7 +1,7 @@
 const express = require('express');
 const { db } = require('../db');
 const { auth, publicUser, findByIdOrUid } = require('../helpers');
-const { notifyUser } = require('../fcm');
+const { notify } = require('../notif');
 const { sanitizeText } = require('../validate');
 
 const router = express.Router();
@@ -49,11 +49,10 @@ router.post('/:id/friend', auth, (req, res) => {
 
   db.prepare('INSERT INTO friend_requests (from_user, to_user, status) VALUES (?, ?, ?)')
     .run(req.userId, target.id, 'pending');
-  notifyUser(
-    target.id,
-    { title: req.user.name, body: 'хочет добавить вас в друзья', data: { url: `profile/${req.user.uid}` } },
-    req.app.get('onlineUsers')
-  );
+  notify(req.app, target.id, req.user, 'friend_request', {
+    body: 'хочет добавить вас в друзья',
+    url: `profile/${req.user.uid}`
+  });
   emit(req.app.get('io'), target.id, 'friend:request', { actorUid: req.user.uid, actorName: req.user.name });
   res.json({ relation: 'outgoing' });
 });
@@ -72,11 +71,10 @@ router.post('/:id/friend/accept', auth, (req, res) => {
   db.prepare('INSERT OR IGNORE INTO friendships (user_a, user_b) VALUES (?, ?)').run(a, b);
   db.prepare('UPDATE friend_requests SET status = ? WHERE id = ?').run('accepted', r.id);
 
-  notifyUser(
-    target.id,
-    { title: req.user.name, body: 'принял(а) вашу заявку в друзья', data: { url: `profile/${req.user.uid}` } },
-    req.app.get('onlineUsers')
-  );
+  notify(req.app, target.id, req.user, 'friend_accepted', {
+    body: 'принял(а) вашу заявку в друзья',
+    url: `profile/${req.user.uid}`
+  });
   emit(req.app.get('io'), target.id, 'friend:accepted', { actorUid: req.user.uid, actorName: req.user.name });
   res.json({ relation: 'friends' });
 });

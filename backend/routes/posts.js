@@ -7,7 +7,7 @@ const { auth, publicUser, commentsFor, findByIdOrUid } = require('../helpers');
 const { sanitizeText } = require('../validate');
 const { randomUid } = require('../security');
 const { log } = require('../logger');
-const { notifyUser, notifyFollowers } = require('../fcm');
+const { notify, notifyFollowers } = require('../notif');
 
 const router = express.Router();
 
@@ -83,11 +83,10 @@ router.post('/:id/like', auth, (req, res) => {
   const n = db.prepare('SELECT COUNT(*) AS n FROM post_likes WHERE post_id = ?').get(id).n;
   const post = db.prepare('SELECT user_id FROM posts WHERE id = ?').get(id);
   if (post && post.user_id !== req.userId) {
-    notifyUser(
-      post.user_id,
-      { title: req.user.name, body: 'лайкнул(а) ваш пост', data: { url: 'feed' } },
-      req.app.get('onlineUsers')
-    );
+    notify(req.app, post.user_id, req.user, 'like', {
+      body: 'лайкнул(а) ваш пост',
+      url: 'feed'
+    });
   }
   res.json({ liked: true, likes: n });
 });
@@ -136,20 +135,18 @@ router.post('/:id/comments', auth, (req, res) => {
     .get(Number(r.lastInsertRowid));
   const short = row.text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
   if (post.user_id !== req.userId) {
-    notifyUser(
-      post.user_id,
-      { title: req.user.name, body: `комментарий: ${short}`, data: { url: 'feed' } },
-      req.app.get('onlineUsers')
-    );
+    notify(req.app, post.user_id, req.user, 'comment', {
+      body: `комментарий: ${short}`,
+      url: 'feed'
+    });
   }
   if (parentId) {
     const parent = db.prepare('SELECT user_id FROM comments WHERE id = ?').get(parentId);
     if (parent && parent.user_id !== req.userId && parent.user_id !== post.user_id) {
-      notifyUser(
-        parent.user_id,
-        { title: req.user.name, body: `ответил(а): ${short}`, data: { url: 'feed' } },
-        req.app.get('onlineUsers')
-      );
+      notify(req.app, parent.user_id, req.user, 'comment', {
+        body: `ответил(а): ${short}`,
+        url: 'feed'
+      });
     }
   }
   res.status(201).json({ comment: row });

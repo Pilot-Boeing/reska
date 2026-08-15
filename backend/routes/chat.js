@@ -6,7 +6,7 @@ const { auth, publicUser, findByIdOrUid } = require('../helpers');
 const { sanitizeText } = require('../validate');
 const { randomUid } = require('../security');
 const { log } = require('../logger');
-const { notifyUser } = require('../fcm');
+const { notify } = require('../notif');
 const { uploadChatMedia } = require('../upload');
 
 const router = express.Router();
@@ -219,15 +219,11 @@ router.post('/:id/messages', auth, (req, res, next) => {
     ? (db.prepare('SELECT name FROM groups WHERE id = ?').get(chat.group_id) || {}).name || 'Группа'
     : req.user.name;
   targets.forEach((id) =>
-    notifyUser(
-      id,
-      {
-        title,
-        body: preview,
-        data: { url: `messages/${chat.uid}` }
-      },
-      req.app.get('onlineUsers')
-    )
+    notify(req.app, id, req.user, 'message', {
+      title: isGroup ? title : undefined,
+      body: preview,
+      url: `messages/${chat.uid}`
+    })
   );
   log('message', { req, userId: req.userId, meta: { chatId: chat.id, e2ee, hasMedia: !!media } });
   res.status(201).json({ message });

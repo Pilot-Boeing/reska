@@ -293,7 +293,7 @@ function go(hash) {
 const AUTH_ROUTES = new Set([
   'feed', 'videos', 'clips', 'watch', 'clip', 'messages', 'profile',
   'edit-profile', 'security', 'search', 'videos-new', 'clips-new',
-  'notes', 'favorites', 'groups', 'friends'
+  'notes', 'favorites', 'groups', 'friends', 'notifications'
 ]);
 
 async function render() {
@@ -320,6 +320,7 @@ async function render() {
       case 'favorites': viewFavorites(); break;
       case 'groups': viewGroups(); break;
       case 'friends': await viewFriends(); break;
+      case 'notifications': await viewNotifications(); break;
       default: await viewFeed();
     }
     window.scrollTo(0, 0);
@@ -343,7 +344,7 @@ function setActiveNav(route) {
   const map = {
     feed: 'feed', videos: 'videos', clips: 'clips', watch: 'videos',
     messages: 'messages', notes: 'notes', favorites: 'favorites', groups: 'groups',
-    search: 'search', friends: 'friends'
+    search: 'search', friends: 'friends', notifications: 'notifications'
   };
   const key = map[route] || (route === 'profile' ? 'profile' : 'feed');
   $$('.slink, .mobilenav a').forEach((a) => a.classList.toggle('active', a.dataset.nav === key));
@@ -379,6 +380,7 @@ async function afterLogin() {
   initPush();
   connectSocket();
   await loadAliases();
+  loadNotifBadge();
   render();
 }
 
@@ -493,6 +495,29 @@ async function connectSocket() {
     toast(`🤝 ${payload.actorName || 'Кто-то'} принял(а) вашу заявку в друзья`);
     if (parseHash().segs[0] === 'friends') viewFriends();
   });
+
+  socket.on('notify:new', (payload) => {
+    if (payload && payload.unread != null) setNotifBadges(payload.unread);
+    if (payload && payload.type === 'message') { refreshChatList(); loadChatBadges(); }
+  });
+}
+
+function setNotifBadges(total) {
+  const a = $('#notif-badge');
+  const b = $('#notif-badge-mn');
+  const val = total > 99 ? '99+' : String(total || '');
+  [a, b].forEach((el) => {
+    if (!el) return;
+    el.textContent = val;
+    el.classList.toggle('hidden', !total);
+  });
+}
+
+async function loadNotifBadge() {
+  try {
+    const data = await api('/notifications', { silent: true });
+    if (data && data.unread != null) setNotifBadges(data.unread);
+  } catch (e) {}
 }
 
 function setMsgBadges(total) {
@@ -2763,6 +2788,78 @@ async function viewFriends() {
     tab = btn.dataset.tab;
     view.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('active', b === btn));
     load();
+  });
+
+  load();
+}
+
+/* ---------- УВЕДОМЛЕНИЯ ---------- */
+async function viewNotifications() {
+  const view = $('#view');
+  view.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+      <div class="page-title" style="margin:0">🔔 Уведомления</div>
+      <button class="btn btn-ghost btn-sm" id="notif-read-all">Прочитать все</button>
+    </div>
+    <div id="notif-list"></div>`;
+
+  const list = $('#notif-list', view);
+
+  const TYPE_TEXT = {
+    like: 'лайкнул(а) вашу запись',
+    comment: 'оставил(а) комментарий',
+    follow: 'подписался(ась) на вас',
+    friend_request: 'хочет добавить вас в друзья',
+    friend_accepted: 'принял(а) вашу заявку в друзья',
+    message: 'отправил(а) сообщение'
+  };
+  const TYPE_ICO = { like: '❤️', comment: '💬', follow: '➕', friend_request: '🤝', friend_accepted: '🤝', message: '💬' };
+
+  function row(n) {
+    const el = document.createElement('a');
+    const href = n.url && n.url !== 'feed' ? '#/' + n.url : '#/feed';
+    el.className = 'user-row card' + (n.read ? '' : ' unread');
+    el.style.marginBottom = '6px';
+    el.style.textDecoration = 'none';
+    el.href = href;
+    el.innerHTML = `
+      <img class="avatar" src="${mediaUrl(n.actor_avatar)}" alt="">
+      <div style="flex:1;min-width:0">
+        <div>
+          <span style="font-weight:700">${esc(n.actor_name)}</span>
+          <span class="muted">${esc(TYPE_TEXT[n.type] || n.body || n.type)}</span>
+        </div>
+        ${n.body ? `<div class="muted" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(n.body)}</div>` : ''}
+        <div class="muted" style="font-size:11px">${timeAgo(n.created_at)}${n.read ? '' : ' · новый'}</div>
+      </div>
+      <span style="font-size:18px">${TYPE_ICO[n.type] || '🔔'}</span>`;
+    if (!n.read) el.addEventListener('click', () => {
+      api('/notifications/read', { method: 'POST', body: { id: n.id } });
+      const b = $('#notif-badge');
+      if (b && !b.classList.contains('hidden')) {
+        const v = Math.max(0, (Number(b.textContent) || 1) - 1);
+        setNotifBadges(v);
+      }
+    });
+    return el;
+  }
+
+  async function load() {
+    try {
+      const data = await api('/notifications');
+      setNotifBadges(data.unread || 0);
+      list.innerHTML = '';
+      if (!data.notifications.length) {
+        list.innerHTML = `<div class="empty">Пока нет уведомлений</div>`;
+        return;
+      }
+      data.notifications.forEach((n) => list.appendChild(row(n)));
+    } catch (err) { list.innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
+  }
+
+  $('#notif-read-all', view).addEventListener('click', async () => {
+    try { await api('/notifications/read-all', { method: 'POST' }); setNotifBadges(0); load(); }
+    catch (err) { toast(err.message, 'error'); }
   });
 
   load();

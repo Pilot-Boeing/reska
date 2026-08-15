@@ -166,6 +166,7 @@ app.use('/api/users', require('./routes/friends'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/chats', require('./routes/chat'));
 app.use('/api/push', require('./routes/push'));
+app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/library', require('./routes/library'));
 app.use('/api/search', require('./routes/search'));
 

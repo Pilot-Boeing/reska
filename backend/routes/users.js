@@ -4,7 +4,7 @@ const { uploadAvatar } = require('../upload');
 const { auth, publicUser, findByIdOrUid } = require('../helpers');
 const { sanitizeText, validName } = require('../validate');
 const { log } = require('../logger');
-const { notifyUser } = require('../fcm');
+const { notify } = require('../notif');
 
 const router = express.Router();
 
@@ -110,11 +110,10 @@ router.post('/:id/follow', auth, (req, res) => {
   if (target.id === req.userId) return res.status(400).json({ error: 'Нельзя подписаться на себя' });
   db.prepare('INSERT OR IGNORE INTO follows (user_id, following_id) VALUES (?, ?)').run(req.userId, target.id);
   const followers = db.prepare('SELECT COUNT(*) AS n FROM follows WHERE following_id = ?').get(target.id).n;
-  notifyUser(
-    target.id,
-    { title: req.user.name, body: 'подписался(ась) на вас', data: { url: `profile/${req.user.uid}` } },
-    req.app.get('onlineUsers')
-  );
+  notify(req.app, target.id, req.user, 'follow', {
+    body: 'подписался(ась) на вас',
+    url: `profile/${req.user.uid}`
+  });
   res.json({ isFollowing: true, followers });
 });
 

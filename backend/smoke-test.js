@@ -494,6 +494,44 @@ async function main() {
   r = await api('GET', '/api/library/groups', { jar: jarB });
   check('группа исчезла из списка', !r.data.groups.some((g) => g.id === gdelId));
 
+  /* 19. уведомления: центр (like/comment/follow/friend/message) */
+  r = await api('POST', `/api/posts/${postUid}/like`, { jar: jarB });
+  check('лайк от другого юзера', r.res.status === 200);
+  r = await api('POST', `/api/posts/${postUid}/comments`, { body: { text: 'уведомляющий коммент' }, jar: jarB });
+  check('комментарий от другого юзера', r.res.status === 201);
+  r = await api('POST', `/api/users/${adminUid}/follow`, { jar: jarB });
+  check('подписка от другого юзера', r.res.status === 200);
+  r = await api('POST', `/api/users/${adminUid}/friend`, { jar: jarB });
+  check('заявка в друзья админу', r.res.status === 200 && r.data.relation === 'outgoing', String(r.res.status));
+  r = await api('POST', `/api/chats/${chatUid}/messages`, { body: { text: 'уведомляющее сообщение' }, jar: jarB });
+  check('сообщение для уведомления', r.res.status === 201);
+
+  r = await api('GET', '/api/notifications', { jar: jarA });
+  check('список уведомлений', r.res.status === 200 && Array.isArray(r.data.notifications) && r.data.notifications.length >= 5, String(r.res.status));
+  check('счётчик непрочитанных', r.data.unread >= 5, String(r.data.unread));
+  const unreadBeforeRead = r.data.unread;
+  const nTypes = new Set(r.data.notifications.slice(0, 10).map((n) => n.type));
+  check('типы уведомлений (like/comment/follow/friend/message)',
+    ['like', 'comment', 'follow', 'friend_request', 'message'].every((t) => nTypes.has(t)), [...nTypes].join(','));
+  check('в уведомлении есть данные актора', r.data.notifications[0].actor_uid && r.data.notifications[0].actor_name);
+
+  const notifId = r.data.notifications[0].id;
+  r = await api('POST', '/api/notifications/read', { body: { id: notifId }, jar: jarA });
+  check('прочитано одно уведомление', r.res.status === 200 && r.data.unread === unreadBeforeRead - 1,
+    `before=${unreadBeforeRead} after=${r.data.unread}`);
+
+  r = await api('POST', '/api/notifications/read', { body: {}, jar: jarA });
+  check('read без id → 400', r.res.status === 400, String(r.res.status));
+
+  r = await api('POST', '/api/notifications/read-all', { jar: jarA });
+  check('все прочитаны', r.res.status === 200 && r.data.unread === 0);
+
+  r = await api('GET', '/api/notifications', { jar: jarA });
+  check('счётчик после read-all = 0', r.data.unread === 0 && r.data.notifications.every((n) => n.read === 1));
+
+  r = await api('GET', '/api/notifications', { jar: jarC });
+  check('чужой не видит чужие уведомления', r.res.status === 200 && r.data.notifications.length === 0);
+
   server.kill();
   await new Promise((res) => server.once('exit', res));
   for (let i = 0; i < 5; i++) {

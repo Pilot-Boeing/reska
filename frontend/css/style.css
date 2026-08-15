@@ -830,6 +830,7 @@ textarea { resize: vertical; }
 .user-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
 .user-row a { color: var(--text); }
 .user-row > div { flex: 1; min-width: 0; }
+.user-row.unread { background: color-mix(in srgb, var(--primary) 8%, transparent); border-left: 3px solid var(--primary); }
 
 /* =========================================================
    КОНСПЕКТЫ / ИЗБРАННОЕ / ГРУППЫ
