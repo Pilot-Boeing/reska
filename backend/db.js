@@ -354,6 +354,7 @@ function migrate() {
   addColumn('users', 'e2ee_pub', 'TEXT DEFAULT \'\'');
   addColumn('users', 'e2ee_ver', 'INTEGER NOT NULL DEFAULT 0');
   addColumn('users', 'phone', 'TEXT DEFAULT \'\'');
+  addColumn('users', 'phone_hash', 'TEXT DEFAULT \'\'');
   addColumn('posts', 'uid', 'TEXT');
   addColumn('videos', 'uid', 'TEXT');
   addColumn('comments', 'uid', 'TEXT');
@@ -376,6 +377,16 @@ function migrate() {
   for (const t of ['users', 'posts', 'videos', 'comments', 'chats']) ensureUid(t);
 
   rebuildChatsForGroups();
+
+  // бэкфилл хэшей телефонов для уже существующих пользователей
+  try {
+    const { hashFor } = require('./phone');
+    const rows = db.prepare("SELECT id, phone FROM users WHERE phone != '' AND (phone_hash = '' OR phone_hash IS NULL)").all();
+    for (const r of rows) {
+      const h = hashFor(r.phone);
+      if (h) db.prepare('UPDATE users SET phone_hash = ? WHERE id = ?').run(h, r.id);
+    }
+  } catch (e) {}
 
   // нормализация логинов в нижний регистр (раньше логин был чувствителен к регистру)
   try {

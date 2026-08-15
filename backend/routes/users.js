@@ -5,6 +5,7 @@ const { auth, publicUser, findByIdOrUid } = require('../helpers');
 const { sanitizeText, validName } = require('../validate');
 const { log } = require('../logger');
 const { notify } = require('../notif');
+const { hashFor } = require('../phone');
 
 const router = express.Router();
 
@@ -66,7 +67,9 @@ router.get('/:id', (req, res) => {
     .all(id);
   const onlineUsers = req.app.get('onlineUsers');
   const online = !!(onlineUsers && onlineUsers.has(id));
-  res.json({ user: { ...publicUser(user), online }, stats, isFollowing, relation, posts, videos });
+  const pub = { ...publicUser(user), online };
+  if (req.userId === user.id) pub.phone = user.phone || '';
+  res.json({ user: pub, stats, isFollowing, relation, posts, videos });
 });
 
 router.put('/:id', auth, (req, res) => {
@@ -80,10 +83,11 @@ router.put('/:id', auth, (req, res) => {
   if (!validName(name)) return res.status(400).json({ error: 'Имя: от 2 до 60 символов' });
   if (phone && !PHONE_RE.test(phone)) return res.status(400).json({ error: 'Неверный формат телефона' });
   const incognito = req.body.incognito === true || req.body.incognito === 1 || req.body.incognito === '1' ? 1 : 0;
-  db.prepare('UPDATE users SET name = ?, bio = ?, status = ?, phone = ?, incognito = ? WHERE id = ?')
-    .run(name, bio, status, phone, incognito, user.id);
+  const phoneHash = hashFor(phone);
+  db.prepare('UPDATE users SET name = ?, bio = ?, status = ?, phone = ?, phone_hash = ?, incognito = ? WHERE id = ?')
+    .run(name, bio, status, phone, phoneHash, incognito, user.id);
   const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
-  res.json({ user: publicUser(updated) });
+  res.json({ user: { ...publicUser(updated), phone: updated.phone || '' } });
 });
 
 router.post('/:id/avatar', auth, uploadAvatar('avatar'), (req, res) => {

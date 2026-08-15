@@ -811,6 +811,18 @@ textarea { resize: vertical; }
 .form-row.checkbox-row input { width: auto; }
 .form-row.checkbox-row label { margin: 0; color: var(--text); font-size: 14px; }
 
+.form-input {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 10px 14px; color: var(--text); font-size: 14px; font-family: var(--font);
+}
+.form-input:focus { outline: none; border-color: var(--primary); }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--card3); border: 1px solid var(--border);
+  border-radius: 20px; padding: 5px 12px; font-size: 13px; color: var(--text);
+}
+
 .file-zone {
   border: 2px dashed var(--border);
   border-radius: var(--radius-sm);

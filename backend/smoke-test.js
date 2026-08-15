@@ -365,6 +365,11 @@ async function main() {
   r = await api('PUT', `/api/users/${userB.uid}`, { body: { name: 'B Smoke', phone: 'bad' }, jar: jarB });
   check('плохой телефон отклонён', r.res.status === 400);
 
+  r = await api('GET', `/api/users/${userB.uid}`, { jar: jarB });
+  check('свой телефон виден владельцу', r.data.user.phone === '+7 999 123-45-67', r.data.user.phone);
+  r = await api('GET', `/api/users/${userB.uid}`, { jar: jarA });
+  check('чужой телефон не утекает', !('phone' in r.data.user));
+
   /* 17a. личные имена (алиасы) */
   r = await api('POST', '/api/auth/login', { body: { username: 'u_admin', password: 'newpass99' }, jar: jarA });
   merge(jarA, jarFrom(r.res));
@@ -531,6 +536,24 @@ async function main() {
 
   r = await api('GET', '/api/notifications', { jar: jarC });
   check('чужой не видит чужие уведомления', r.res.status === 200 && r.data.notifications.length === 0);
+
+  /* 20. поиск по контактам телефонной книги */
+  r = await api('POST', '/api/search/contacts', { body: { phones: ['+7 999 123-45-67', '89991234567', '8 (999) 123-45-67'] }, jar: jarB });
+  check('контакт найден', r.res.status === 200 && r.data.matches.length === 1, JSON.stringify(r.data).slice(0, 150));
+  check('совпадение с u_user', r.data.matches[0] && r.data.matches[0].user.username === 'u_user');
+  check('номер в ответе нормализован', r.data.matches[0] && r.data.matches[0].phone === '79991234567');
+
+  r = await api('POST', '/api/search/contacts', { body: { phones: ['+1 202 555 0100', '+49 30 12345'] }, jar: jarB });
+  check('чужие (не РФ) номера не найдены', r.res.status === 200 && r.data.matches.length === 0);
+
+  r = await api('POST', '/api/search/contacts', { body: { phones: ['+7 999 123-45-67'] }, jar: {} });
+  check('контакты без авторизации → 401', r.res.status === 401, String(r.res.status));
+
+  r = await api('POST', '/api/search/contacts', { body: {}, jar: jarB });
+  check('contacts без phones → 400', r.res.status === 400, String(r.res.status));
+
+  r = await api('POST', '/api/search/contacts', { body: { phones: ['+7 999 123-45-67'] }, jar: jarC });
+  check('номер не утекает при совпадении', r.res.status === 200 && r.data.matches.length === 1 && !('phone' in r.data.matches[0].user));
 
   server.kill();
   await new Promise((res) => server.once('exit', res));

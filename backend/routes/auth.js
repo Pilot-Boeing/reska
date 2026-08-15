@@ -191,7 +191,7 @@ router.post('/login/2fa', (req, res) => {
 /* ---------- текущий пользователь ---------- */
 router.get('/me', auth, (req, res) => {
   res.json({
-    user: publicUser(req.user),
+    user: { ...publicUser(req.user), phone: req.user.phone || '' },
     totp: totpEnabled(req.userId),
     csrf: parseCookies(req).reska_csrf || ''
   });

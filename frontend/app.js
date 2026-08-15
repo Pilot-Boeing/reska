@@ -2480,6 +2480,7 @@ async function renderSessions() {
 }
 async function viewSearch(type) {
   const view = $('#view');
+  const isPeople = type === 'all' || type === 'users';
   view.innerHTML = `
     <div class="page-title">🔍 Поиск: ${esc(currentSearch)}</div>
     <div class="search-tabs" style="display:flex;gap:8px;margin-bottom:18px">
@@ -2488,11 +2489,14 @@ async function viewSearch(type) {
       <button class="btn btn-sm ${type === 'posts' ? '' : 'btn-ghost'}" data-t="posts">Посты</button>
       <button class="btn btn-sm ${type === 'videos' ? '' : 'btn-ghost'}" data-t="videos">Видео</button>
     </div>
+    ${isPeople ? contactsBlockHtml() : ''}
     <div class="search-results" id="search-results"></div>`;
 
   $$('.search-tabs button', view).forEach((b) => {
     b.addEventListener('click', () => go('/search?type=' + b.dataset.t + '&q=' + encodeURIComponent(currentSearch)));
   });
+
+  if (isPeople) initContacts(view);
 
   const results = $('#search-results', view);
   if (!currentSearch) { results.innerHTML = `<div class="empty">Введите запрос для поиска</div>`; return; }
@@ -2535,6 +2539,116 @@ async function viewSearch(type) {
 
   const vBox = $('#sr-videos', results);
   if (vBox) data.videos.forEach((v) => vBox.appendChild(buildVideoCard({ ...v, is_clip: v.is_clip })));
+}
+
+/* ---------- поиск по контактам телефонной книги ---------- */
+function contactsBlockHtml() {
+  return `
+  <div class="search-block card" style="padding:16px;margin-bottom:18px">
+    <h2 style="margin:0 0 4px">📇 Контакты из телефонной книги</h2>
+    <div class="muted" style="font-size:13px;margin-bottom:12px">Найдите людей РЕСКИ по номеру из контактов устройства. Номера не сохраняются — на сервер уходит только хэш.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <button class="btn btn-primary btn-sm" id="ct-pick">📱 Выбрать контакты</button>
+      <input id="ct-input" class="form-input" placeholder="+7 999 123-45-67" inputmode="tel" maxlength="30" style="flex:1;min-width:180px">
+      <button class="btn btn-ghost btn-sm" id="ct-add">＋ Добавить</button>
+    </div>
+    <div id="ct-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
+    <button class="btn btn-primary btn-block" id="ct-find" disabled>Найти в контактах</button>
+    <div id="ct-results" style="margin-top:12px"></div>
+  </div>`;
+}
+
+function normalizePhone(raw) {
+  let d = String(raw || '').replace(/\D/g, '');
+  if (d.length === 11 && d[0] === '8') d = '7' + d.slice(1);
+  else if (d.length === 10) d = '7' + d;
+  return /^7\d{10}$/.test(d) ? d : '';
+}
+
+function initContacts(view) {
+  const chips = new Set();
+  const names = new Map(); /* нормализованный номер → имя контакта */
+  const chipBox = $('#ct-chips', view);
+  const results = $('#ct-results', view);
+  const findBtn = $('#ct-find', view);
+
+  function renderChips() {
+    chipBox.innerHTML = '';
+    [...chips].forEach((n) => {
+      const c = document.createElement('span');
+      c.className = 'chip';
+      c.innerHTML = `${esc(n)} <b data-x="1" style="cursor:pointer">✕</b>`;
+      c.querySelector('[data-x]').addEventListener('click', () => { chips.delete(n); renderChips(); });
+      chipBox.appendChild(c);
+    });
+    findBtn.disabled = chips.size === 0;
+  }
+
+  function addNum(raw, name) {
+    const n = normalizePhone(raw);
+    if (!n) return false;
+    chips.add(n);
+    if (name && !names.has(n)) names.set(n, name);
+    renderChips();
+    return true;
+  }
+
+  $('#ct-add', view).addEventListener('click', () => {
+    const inp = $('#ct-input', view);
+    if (!addNum(inp.value, '')) toast('Неверный формат номера', 'error');
+    inp.value = '';
+  });
+
+  $('#ct-pick', view).addEventListener('click', async () => {
+    if (!('contacts' in navigator) || !navigator.contacts || typeof navigator.contacts.select !== 'function') {
+      toast('Выбор контактов недоступен в этом браузере — введите номера вручную', 'error');
+      return;
+    }
+    let contacts = null;
+    try {
+      contacts = await navigator.contacts.select(['name', 'tel'], { multiple: true });
+    } catch (e) {
+      try { contacts = await navigator.contacts.select(['tel'], { multiple: true }); }
+      catch (e2) { toast('Доступ к контактам отклонён', 'error'); return; }
+    }
+    let added = 0;
+    (contacts || []).forEach((c) => {
+      (c.tel || []).forEach((t) => { if (addNum(t, c.name || '')) added++; });
+    });
+    toast(added ? `Добавлено номеров: ${added}` : 'В выбранных контактах нет номеров');
+  });
+
+  findBtn.addEventListener('click', async () => {
+    findBtn.disabled = true;
+    try {
+      const data = await api('/search/contacts', { method: 'POST', body: { phones: [...chips] } });
+      results.innerHTML = '';
+      if (!data.matches.length) {
+        results.innerHTML = `<div class="empty">Никто из контактов пока не зарегистрирован в РЕСКИ</div>`;
+        return;
+      }
+      data.matches.forEach((m) => {
+        const contactName = names.get(m.phone) || '';
+        const row = document.createElement('div');
+        row.className = 'user-row card';
+        row.style.marginBottom = '8px';
+        row.innerHTML = `
+          <a href="#/profile/${esc(m.user.uid)}"><img class="avatar" src="${mediaUrl(m.user.avatar)}" alt=""></a>
+          <div style="flex:1;min-width:0">
+            ${contactName ? `<div class="muted" style="font-size:12px">${esc(contactName)}</div>` : ''}
+            <a href="#/profile/${esc(m.user.uid)}" style="font-weight:700;color:var(--text)">${esc(displayName(m.user))}</a>
+            <div class="muted" style="font-size:12px">@${esc(m.user.username)}</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" data-act="msg">💬</button>`;
+        row.querySelector('[data-act]').addEventListener('click', async () => {
+          const res = await api('/chats', { method: 'POST', body: { user_id: m.user.id } });
+          go('/messages/' + res.uid);
+        });
+        results.appendChild(row);
+      });
+    } catch (err) { toast(err.message, 'error'); }
+    finally { findBtn.disabled = false; }
+  });
 }
 
 function openNewPostModal() {
