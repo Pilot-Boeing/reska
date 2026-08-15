@@ -365,6 +365,48 @@ async function main() {
   r = await api('PUT', `/api/users/${userB.uid}`, { body: { name: 'B Smoke', phone: 'bad' }, jar: jarB });
   check('плохой телефон отклонён', r.res.status === 400);
 
+  /* 17a. личные имена (алиасы) */
+  r = await api('POST', '/api/auth/login', { body: { username: 'u_admin', password: 'newpass99' }, jar: jarA });
+  merge(jarA, jarFrom(r.res));
+  check('повторный вход админа', r.res.status === 200, String(r.res.status));
+
+  r = await api('GET', '/api/users/aliases', { jar: jarA });
+  check('список алиасов пуст', r.res.status === 200 && r.data.aliases.length === 0);
+
+  r = await api('PUT', `/api/users/${userB.uid}/alias`, { body: { alias: 'Мой друг' }, jar: jarA });
+  check('установка алиаса', r.res.status === 200 && r.data.alias === 'Мой друг', String(r.res.status));
+
+  r = await api('PUT', `/api/users/${userB.uid}/alias`, { body: { alias: '   ' }, jar: jarA });
+  check('пустой алиас удаляет', r.res.status === 200 && r.data.alias === '');
+
+  r = await api('PUT', `/api/users/${userB.uid}/alias`, { body: { alias: 'Друг 2' }, jar: jarA });
+  check('переустановка алиаса', r.res.status === 200 && r.data.alias === 'Друг 2');
+
+  r = await api('GET', '/api/users/aliases', { jar: jarA });
+  check('алиас в списке', r.data.aliases.some((a) => a.uid === userB.uid && a.alias === 'Друг 2'));
+
+  r = await api('GET', '/api/users/aliases', { jar: jarB });
+  check('алиасы видны только владельцу', r.res.status === 200 && r.data.aliases.length === 0);
+
+  r = await api('PUT', `/api/users/${userB.uid}/alias`, { body: { alias: 'x' }, jar: jarB });
+  check('алиас на себя запрещён', r.res.status === 400);
+
+  r = await api('DELETE', `/api/users/${userB.uid}/alias`, { jar: jarA });
+  check('удаление алиаса', r.res.status === 200 && r.data.alias === '');
+
+  r = await api('GET', '/api/users/aliases', { jar: jarA });
+  check('алиас удалён из списка', r.data.aliases.length === 0);
+
+  r = await api('PUT', `/api/users/${userB.uid}/alias`, { body: { alias: 'Друг 3' }, jar: jarA });
+  check('алиас для чата', r.res.status === 200);
+  r = await api('POST', `/api/chats/${chatUid}/messages`, { body: { text: 'проверка sender_uid' }, jar: jarB });
+  check('сообщение для проверки sender_uid', r.res.status === 201);
+  r = await api('GET', `/api/chats/${chatUid}/messages`, { jar: jarA });
+  const sndMsg = r.data.messages.find((m) => m.text === 'проверка sender_uid');
+  check('sender_uid в сообщении', !!sndMsg && sndMsg.sender_uid === userB.uid, JSON.stringify(sndMsg));
+  r = await api('DELETE', `/api/users/${userB.uid}/alias`, { jar: jarA });
+  check('алиас убран', r.res.status === 200);
+
   /* 18. библиотека: конспекты и группы (серверное хранение) */
   r = await api('GET', '/api/library/notes', { jar: jarB });
   check('список конспектов пуст', r.res.status === 200 && Array.isArray(r.data.notes));

@@ -2,6 +2,7 @@ const express = require('express');
 const { db } = require('../db');
 const { auth, publicUser, findByIdOrUid } = require('../helpers');
 const { notifyUser } = require('../fcm');
+const { sanitizeText } = require('../validate');
 
 const router = express.Router();
 
@@ -131,6 +132,41 @@ router.get('/requests', auth, (req, res) => {
     .all(req.userId)
     .map((r) => publicUser(r));
   res.json({ incoming, outgoing });
+});
+
+/* ---------- личные имена (алиасы) ---------- */
+router.get('/aliases', auth, (req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT c.contact_id, c.alias, u.uid, u.username, u.name, u.avatar
+       FROM contact_aliases c JOIN users u ON u.id = c.contact_id
+       WHERE c.owner_id = ? ORDER BY c.alias`
+    )
+    .all(req.userId);
+  res.json({ aliases: rows });
+});
+
+router.put('/:id/alias', auth, (req, res) => {
+  const target = findByIdOrUid('users', req.params.id);
+  if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
+  if (target.id === req.userId) return res.status(400).json({ error: 'Нельзя дать имя самому себе' });
+  const alias = sanitizeText(req.body.alias, 40);
+  if (!alias) {
+    db.prepare('DELETE FROM contact_aliases WHERE owner_id = ? AND contact_id = ?').run(req.userId, target.id);
+    return res.json({ alias: '' });
+  }
+  db.prepare(
+    'INSERT INTO contact_aliases (owner_id, contact_id, alias) VALUES (?, ?, ?) ' +
+      'ON CONFLICT(owner_id, contact_id) DO UPDATE SET alias = excluded.alias'
+  ).run(req.userId, target.id, alias);
+  res.json({ alias });
+});
+
+router.delete('/:id/alias', auth, (req, res) => {
+  const target = findByIdOrUid('users', req.params.id);
+  if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
+  db.prepare('DELETE FROM contact_aliases WHERE owner_id = ? AND contact_id = ?').run(req.userId, target.id);
+  res.json({ alias: '' });
 });
 
 module.exports = router;

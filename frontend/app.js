@@ -378,7 +378,24 @@ async function afterLogin() {
   E2EE.pushPubKey(me.uid);
   initPush();
   connectSocket();
+  await loadAliases();
   render();
+}
+
+const aliases = new Map(); /* uid -> alias (личные имена) */
+
+async function loadAliases() {
+  try {
+    const data = await api('/users/aliases', { silent: true });
+    aliases.clear();
+    (data.aliases || []).forEach((a) => aliases.set(a.uid, a.alias));
+  } catch (e) {}
+}
+
+function displayName(u) {
+  if (!u) return '';
+  const a = u.uid && aliases.get(u.uid);
+  return a || u.name || u.username || '';
 }
 
 function sessionExpired() {
@@ -598,7 +615,7 @@ function buildPost(post) {
   $('.post-avatar-link img', node).src = mediaUrl(post.avatar);
   const authorEl = $('.post-author', node);
   authorEl.href = '#/profile/' + authorId;
-  authorEl.textContent = post.name;
+  authorEl.textContent = displayName(post);
   $('.post-time', node).textContent = timeAgo(post.created_at);
   const textEl = $('.post-text', node);
   textEl.innerHTML = linkifyTags(post.text);
@@ -758,7 +775,7 @@ function buildComment(c, target) {
   $('.avatar', node).src = mediaUrl(c.avatar);
   const a = $('.comment-author', node);
   a.href = '#/profile/' + (c.author_uid || c.user_id);
-  a.textContent = c.name;
+  a.textContent = displayName(c);
   $('.comment-text', node).textContent = c.text;
   $('.reply-btn', node).addEventListener('click', () => {
     const rf = $('.reply-form', root);
@@ -784,7 +801,7 @@ function buildVideoCard(v) {
   $('img', node).alt = v.title;
   $('.views-badge', node).textContent = '👁 ' + fmtViews(v.views);
   $('.video-title', node).innerHTML = linkifyTags(v.title);
-  $('.video-author', node).textContent = `${v.name} · ${fmtViews(v.views)} просмотров`;
+  $('.video-author', node).textContent = `${displayName(v)} · ${fmtViews(v.views)} просмотров`;
   if (v.is_clip) $('.clip-badge', node).classList.remove('hidden');
   card.addEventListener('click', () => openVideoOverlay(v.id));
 
@@ -1019,7 +1036,7 @@ function buildClipCard(v) {
   video.poster = mediaUrl(v.thumb);
   const av = $('.clip-avatar', node);
   av.style.backgroundImage = `url(${mediaUrl(v.avatar)})`;
-  $('.clip-author-name', node).textContent = v.name || '';
+  $('.clip-author-name', node).textContent = displayName(v);
   $('.clip-author-block', node).href = '#/profile/' + v.author_uid;
   $('.clip-like-count', node).textContent = v.likes || '0';
   $('.clip-comment-count', node).textContent = v.comments != null ? v.comments : '0';
@@ -1267,7 +1284,7 @@ function renderChatList() {
   chatsCache.forEach((c) => {
     const isGroup = c.kind === 'group';
     const isSelf = !isGroup && c.other && c.other.id === me.id;
-    const name = isGroup ? c.name : (isSelf ? '📝 Сообщения себе' : c.other.name);
+    const name = isGroup ? c.name : (isSelf ? '📝 Сообщения себе' : displayName(c.other));
     const last = isGroup
       ? (c.last_text || 'Группа создана')
       : (isSelf && !c.last_text ? 'Заметки, избранное, черновики' : (c.last_text || 'Нет сообщений'));
@@ -1343,7 +1360,7 @@ async function openChat(chatUid) {
       <button class="btn btn-ghost btn-sm chat-del" style="margin-left:auto" title="Удалить чат">🗑</button>`;
   } else if (chat && chat.other) {
     head = `<a href="#/profile/${esc(chat.other.uid)}"><img class="avatar sm" src="${mediaUrl(chat.other.avatar)}" alt=""></a>
-      <b>${esc(chat.other.name)}</b>
+      <b>${esc(displayName(chat.other))}</b>
       <span class="e2ee-tag" title="Сообщения шифруются на вашем устройстве (E2EE)">🔒 E2EE</span>
       <button class="btn btn-ghost btn-sm chat-del" title="Удалить чат">🗑</button>`;
   }
@@ -1710,7 +1727,8 @@ function appendMessage(m) {
   if (activeChat && activeChat.kind === 'group') {
     const author = document.createElement('span');
     author.className = 'msg-author';
-    author.textContent = m.sender_id === me.id ? (me.name || 'Вы') : (m.name || 'Пользователь');
+    const authorName = m.sender_id === me.id ? (me.name || 'Вы') : displayName({ uid: m.sender_uid, name: m.name });
+    author.textContent = authorName;
     div.insertBefore(author, $('.msg-bubble', node));
   }
   const bubble = $('.msg-bubble', node);
@@ -1957,7 +1975,7 @@ async function openNewChatModal() {
       row.innerHTML = `
         <img class="avatar" src="${mediaUrl(u.avatar)}" alt="">
         <div style="flex:1">
-          <div style="font-weight:700">${esc(u.name)}</div>
+          <div style="font-weight:700">${esc(displayName(u))}</div>
           <div class="muted" style="font-size:12px">@${esc(u.username)}</div>
         </div>
         <button class="btn btn-sm">Написать</button>`;
@@ -2008,7 +2026,7 @@ async function openNewGroupModal() {
       row.innerHTML = `
         <img class="avatar" src="${mediaUrl(u.avatar)}" alt="">
         <div style="flex:1">
-          <div style="font-weight:700">${esc(u.name)}</div>
+          <div style="font-weight:700">${esc(displayName(u))}</div>
           <div class="muted" style="font-size:12px">@${esc(u.username)}</div>
         </div>
         <span class="pick-check">${selected.has(u.id) ? '✓' : ''}</span>`;
@@ -2071,14 +2089,14 @@ async function openGroupMembers(chat) {
       row.innerHTML = `
         <img class="avatar" src="${mediaUrl(u.avatar)}" alt="">
         <div style="flex:1">
-          <div style="font-weight:700">${esc(u.name)}${u.role === 'owner' ? ' <span class="role-badge admin">СОЗДАТЕЛЬ</span>' : ''}</div>
+          <div style="font-weight:700">${esc(displayName(u))}${u.role === 'owner' ? ' <span class="role-badge admin">СОЗДАТЕЛЬ</span>' : ''}</div>
           <div class="muted" style="font-size:12px">@${esc(u.username)}</div>
         </div>
         ${isOwner && u.role !== 'owner' ? `<button class="btn btn-sm btn-ghost" data-id="${u.id}">Исключить</button>` : ''}`;
       const kick = row.querySelector('[data-id]');
       if (kick) {
         kick.addEventListener('click', async () => {
-          if (!confirm(`Исключить ${u.name} из группы?`)) return;
+          if (!confirm(`Исключить ${displayName(u)} из группы?`)) return;
           try {
             await api(`/library/groups/${chat.group_id}/members/${u.id}`, { method: 'DELETE' });
             toast('Участник исключён');
@@ -2136,9 +2154,10 @@ async function viewProfile(id) {
       <div class="profile-head card">
         <span class="avatar-ring ${u.online ? '' : 'offline'}"><img class="avatar xl" src="${mediaUrl(u.avatar)}" alt=""></span>
         <div class="profile-info">
-          <div class="profile-name">${esc(u.name)}
+          <div class="profile-name">${esc(isMe ? u.name : displayName(u))}
             <span class="role-badge ${u.role}">${u.role === 'admin' ? 'АДМИН' : 'УЧАСТНИК'}</span>
           </div>
+          ${!isMe && aliases.get(u.uid) ? `<div class="profile-status muted" style="font-size:13px">${esc(u.name)}</div>` : ''}
           <div class="profile-status">${u.online ? '<span class="online-dot"></span> онлайн' : ''} ${esc(u.status || '')}</div>
           <p class="profile-bio">${esc(u.bio || '')}</p>
           ${u.phone ? `<p class="profile-bio"><a class="phone-link" href="${esc(phoneHref)}">📞 ${esc(u.phone)}</a></p>` : ''}
@@ -2154,7 +2173,8 @@ async function viewProfile(id) {
                  <button class="btn btn-ghost" data-action="logout" style="color:var(--danger);border-color:var(--danger)">🚪 Выйти</button>`
               : `<button class="btn ${data.isFollowing ? 'btn-ghost' : 'btn-primary'}" data-action="follow" data-state="${data.isFollowing ? '1' : '0'}">
                    ${data.isFollowing ? '✓ Вы подписаны' : '＋ Подписаться'}</button>
-                 <button class="btn btn-ghost" data-action="friend" data-relation="${data.relation || 'none'}" style="color:var(--accent);border-color:var(--accent)">${friendBtnLabel(data.relation)}</button>`
+                 <button class="btn btn-ghost" data-action="friend" data-relation="${data.relation || 'none'}" style="color:var(--accent);border-color:var(--accent)">${friendBtnLabel(data.relation)}</button>
+                 <button class="btn btn-ghost" data-action="alias">✏ Имя</button>`
             }
             <button class="btn btn-ghost" data-action="message" ${isMe ? 'disabled' : ''}>💬 Написать</button>
           </div>
@@ -2202,6 +2222,48 @@ async function viewProfile(id) {
     if (act === 'message') {
       const res = await api('/chats', { method: 'POST', body: { user_id: u.id } });
       go('/messages/' + res.uid);
+    }
+    if (act === 'alias') {
+      const current = aliases.get(u.uid) || '';
+      const modal = document.createElement('div');
+      modal.className = 'modal-backdrop';
+      modal.innerHTML = `
+        <div class="modal card">
+          <button class="close-x">✕</button>
+          <h2>✏ Личное имя</h2>
+          <p class="muted" style="font-size:13px;margin-bottom:12px">Имя, под которым вы видите ${esc(u.name)} (видно только вам)</p>
+          <form id="alias-form">
+            <div class="form-row"><label>Имя</label><input name="alias" maxlength="40" value="${esc(current)}" placeholder="${esc(u.name)}"></div>
+            <div style="display:flex;gap:8px;margin-top:14px">
+              <button type="submit" class="btn btn-primary" style="flex:1">Сохранить</button>
+              ${current ? `<button type="button" class="btn btn-ghost" id="alias-clear" style="color:var(--danger)">Сбросить</button>` : ''}
+            </div>
+          </form>
+        </div>`;
+      document.body.appendChild(modal);
+      modal.querySelector('.close-x').addEventListener('click', () => modal.remove());
+      modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+      modal.querySelector('#alias-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+          const alias = modal.querySelector('[name="alias"]').value.trim();
+          const res = await api(`/users/${u.uid}/alias`, { method: 'PUT', body: { alias } });
+          if (res.alias) aliases.set(u.uid, res.alias); else aliases.delete(u.uid);
+          modal.remove();
+          toast(res.alias ? 'Имя сохранено' : 'Имя удалено');
+          viewProfile(u.uid);
+        } catch (err) { toast(err.message, 'error'); }
+      });
+      const clearBtn = modal.querySelector('#alias-clear');
+      if (clearBtn) clearBtn.addEventListener('click', async () => {
+        try {
+          await api(`/users/${u.uid}/alias`, { method: 'DELETE' });
+          aliases.delete(u.uid);
+          modal.remove();
+          toast('Имя удалено');
+          viewProfile(u.uid);
+        } catch (err) { toast(err.message, 'error'); }
+      });
     }
     if (act === 'follow') {
       try {
@@ -2431,7 +2493,7 @@ async function viewSearch(type) {
       row.style.marginBottom = '8px';
       row.innerHTML = `
         <a href="#/profile/${u.uid}"><img class="avatar" src="${mediaUrl(u.avatar)}" alt=""></a>
-        <div style="flex:1"><a href="#/profile/${u.uid}" style="font-weight:700;color:var(--text)">${esc(u.name)}</a>
+        <div style="flex:1"><a href="#/profile/${u.uid}" style="font-weight:700;color:var(--text)">${esc(displayName(u))}</a>
           <div class="muted" style="font-size:12px">@${esc(u.username)} · ${esc(u.status || '')}</div></div>
         <button class="btn btn-ghost btn-sm" data-act="msg-${u.id}">💬</button>`;
       row.querySelector('[data-act]').addEventListener('click', async (ev) => {
@@ -2626,7 +2688,7 @@ async function viewFriends() {
       <a href="#/profile/${esc(u.uid)}" style="display:flex;align-items:center;gap:12px;flex:1;color:var(--text)">
         <img class="avatar" src="${mediaUrl(u.avatar)}" alt="">
         <div>
-          <div style="font-weight:700">${esc(u.name)}</div>
+          <div style="font-weight:700">${esc(displayName(u))}</div>
           <div class="muted" style="font-size:12px">@${esc(u.username)}</div>
         </div>
       </a>

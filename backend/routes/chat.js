@@ -118,7 +118,7 @@ router.post('/', auth, (req, res) => {
   const MESSAGE_QUERY = `
   SELECT m.id, m.chat_id, m.sender_id, m.text, m.e2ee, m.read, m.edited, m.created_at,
          m.media, m.media_type, m.media_name, m.media_mime, m.media_size, m.media_duration,
-         u.username, u.name, u.avatar
+         u.uid AS sender_uid, u.username, u.name, u.avatar
   FROM messages m JOIN users u ON u.id = m.sender_id
 `;
 

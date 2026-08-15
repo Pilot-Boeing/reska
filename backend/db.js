@@ -132,6 +132,14 @@ CREATE TABLE IF NOT EXISTS friendships (
   CHECK (user_a < user_b)
 );
 
+CREATE TABLE IF NOT EXISTS contact_aliases (
+  owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  contact_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  alias TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (owner_id, contact_id)
+);
+
 CREATE TABLE IF NOT EXISTS posts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   uid TEXT UNIQUE,
