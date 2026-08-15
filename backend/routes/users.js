@@ -46,6 +46,18 @@ router.get('/:id', (req, res) => {
       .prepare('SELECT 1 FROM follows WHERE user_id = ? AND following_id = ?')
       .get(req.userId, id);
   }
+  let relation = req.userId === id ? 'self' : 'none';
+  if (req.userId && req.userId !== id) {
+    const a = Math.min(req.userId, id);
+    const b = Math.max(req.userId, id);
+    if (db.prepare('SELECT 1 FROM friendships WHERE user_a = ? AND user_b = ?').get(a, b)) relation = 'friends';
+    else {
+      const pending = db
+        .prepare("SELECT * FROM friend_requests WHERE status = 'pending' AND ((from_user = ? AND to_user = ?) OR (from_user = ? AND to_user = ?))")
+        .get(req.userId, id, id, req.userId);
+      if (pending) relation = pending.from_user === req.userId ? 'outgoing' : 'incoming';
+    }
+  }
   const posts = db
     .prepare('SELECT id, uid, text, media, media_type, created_at FROM posts WHERE user_id = ? ORDER BY id DESC LIMIT 10')
     .all(id);
@@ -54,7 +66,7 @@ router.get('/:id', (req, res) => {
     .all(id);
   const onlineUsers = req.app.get('onlineUsers');
   const online = !!(onlineUsers && onlineUsers.has(id));
-  res.json({ user: { ...publicUser(user), online }, stats, isFollowing, posts, videos });
+  res.json({ user: { ...publicUser(user), online }, stats, isFollowing, relation, posts, videos });
 });
 
 router.put('/:id', auth, (req, res) => {

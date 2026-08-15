@@ -81,6 +81,15 @@ function fmtDuration(sec) {
   return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 }
 
+function friendBtnLabel(rel) {
+  switch (rel) {
+    case 'friends': return '✓ Друзья';
+    case 'outgoing': return '⏳ Заявка отправлена';
+    case 'incoming': return '✔ Принять заявку';
+    default: return '＋ Добавить в друзья';
+  }
+}
+
 function b64encode(buf) {
   let s = '';
   for (let i = 0; i < buf.length; i++) s += String.fromCharCode(buf[i]);
@@ -284,7 +293,7 @@ function go(hash) {
 const AUTH_ROUTES = new Set([
   'feed', 'videos', 'clips', 'watch', 'clip', 'messages', 'profile',
   'edit-profile', 'security', 'search', 'videos-new', 'clips-new',
-  'notes', 'favorites', 'groups'
+  'notes', 'favorites', 'groups', 'friends'
 ]);
 
 async function render() {
@@ -310,6 +319,7 @@ async function render() {
       case 'notes': viewNotes(); break;
       case 'favorites': viewFavorites(); break;
       case 'groups': viewGroups(); break;
+      case 'friends': await viewFriends(); break;
       default: await viewFeed();
     }
     window.scrollTo(0, 0);
@@ -333,7 +343,7 @@ function setActiveNav(route) {
   const map = {
     feed: 'feed', videos: 'videos', clips: 'clips', watch: 'videos',
     messages: 'messages', notes: 'notes', favorites: 'favorites', groups: 'groups',
-    search: 'search'
+    search: 'search', friends: 'friends'
   };
   const key = map[route] || (route === 'profile' ? 'profile' : 'feed');
   $$('.slink, .mobilenav a').forEach((a) => a.classList.toggle('active', a.dataset.nav === key));
@@ -457,6 +467,15 @@ async function connectSocket() {
     }
     loadChatBadges();
   });
+
+  socket.on('friend:request', (payload) => {
+    toast(`🤝 ${payload.actorName || 'Кто-то'} хочет добавить вас в друзья`);
+  });
+
+  socket.on('friend:accepted', (payload) => {
+    toast(`🤝 ${payload.actorName || 'Кто-то'} принял(а) вашу заявку в друзья`);
+    if (parseHash().segs[0] === 'friends') viewFriends();
+  });
 }
 
 function setMsgBadges(total) {
@@ -490,6 +509,69 @@ function toast(msg, type) {
   el.textContent = msg;
   $('#toast-root').appendChild(el);
   setTimeout(() => el.remove(), 3200);
+}
+
+/* ---------- ошибка записи медиа (микрофон/камера) ---------- */
+function showMediaError(kind, why, err) {
+  const isRound = kind === 'round';
+  const device = isRound ? 'камеру' : 'микрофон';
+  const needsCam = isRound;
+  let title = 'Нет доступа к ' + device;
+  let reason;
+  let help;
+  const name = err ? (err.name || '') : '';
+
+  if (why) {
+    reason = why;
+  } else if (name === 'NotAllowedError' || name === 'SecurityError' || name === 'PermissionDeniedError') {
+    reason = 'Разрешение отклонено браузером или системой.';
+    help = needsCam
+      ? 'Нажмите значок 🔒 (или ⓘ) слева от адресной строки → «Разрешения» → разрешите «Камера» и «Микрофон», затем обновите страницу.'
+      : 'Нажмите значок 🔒 (или ⓘ) слева от адресной строки → «Разрешения» → разрешите «Микрофон», затем обновите страницу.';
+  } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+    reason = needsCam ? 'Камера не найдена.' : 'Микрофон не найден.';
+    help = 'Подключите ' + device + ' и проверьте, что она не занята другой программой.';
+  } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+    reason = needsCam ? 'Камера уже используется другой программой.' : 'Микрофон уже используется другой программой.';
+    help = 'Закройте программы, использующие ' + device + ' (звонки, запись, видеоконференции), и повторите.';
+  } else if (name === 'OverconstrainedError') {
+    reason = 'Устройство не поддерживает требуемые параметры записи.';
+    help = 'Попробуйте запись аудио или проверьте настройки камеры.';
+  } else if (name === 'TypeError') {
+    reason = 'Не удалось инициализировать запись.';
+    help = 'Обновите страницу (Ctrl+Shift+R) и повторите.';
+  } else {
+    reason = (err && err.message) ? err.message : 'Не удалось получить доступ.';
+    help = 'Убедитесь, что ' + device + ' работает, разрешите доступ в настройках сайта и повторите.';
+  }
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-backdrop';
+  modal.innerHTML = `
+    <div class="modal card">
+      <button class="close-x">✕</button>
+      <h2 style="display:flex;align-items:center;gap:8px">${isRound ? '⭕' : '🎤'} ${esc(title)}</h2>
+      <p style="margin:10px 0;color:var(--text)">${esc(reason)}</p>
+      <div class="card" style="background:var(--bg2);padding:12px;font-size:13px;color:var(--muted);line-height:1.5">
+        💡 ${esc(help)}
+      </div>
+      <div style="display:flex;gap:8px;margin-top:18px">
+        <button class="btn btn-primary" data-act="retry">Повторить</button>
+        <button class="btn btn-ghost" data-act="close">Закрыть</button>
+      </div>
+    </div>`;
+  $('#modal-root').appendChild(modal);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal || e.target.classList.contains('close-x') || e.target.closest('[data-act="close"]')) modal.remove();
+    else if (e.target.closest('[data-act="retry"]')) {
+      modal.remove();
+      const chatView = $('#view .chat-input');
+      if (chatView) {
+        const btn = $(`.chat-tool[data-tool="${isRound ? 'round' : 'audio'}"]`, chatView.parentElement);
+        if (btn) btn.click();
+      }
+    }
+  });
 }
 
 /* ---------- share / favorites ---------- */
@@ -1354,7 +1436,7 @@ async function openChat(chatUid) {
       const why = !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia
         ? (window.isSecureContext ? 'нет API getUserMedia' : 'страница открыта не по HTTPS (безопасный контекст)')
         : 'нет MediaRecorder';
-      toast('Запись не поддерживается: ' + why, 'error');
+      showMediaError(type, why, null);
       return;
     }
     const isRound = type === 'round';
@@ -1402,7 +1484,7 @@ async function openChat(chatUid) {
         if (el) el.textContent = fmtDuration((Date.now() - recStart) / 1000);
         if (recMax && Date.now() - recStart >= recMax * 1000) stopRec(false);
       }, 250);
-    }).catch((err) => toast('Нет доступа к микрофону/камере: ' + (err && (err.name || err.message)), 'error'));
+    }).catch((err) => showMediaError(isRound ? 'round' : 'audio', null, err));
   }
 
   function renderRecUi(isRound) {
@@ -2068,9 +2150,11 @@ async function viewProfile(id) {
           </div>
           <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
             ${isMe
-              ? `<button class="btn btn-ghost" data-action="edit-profile">✏ Редактировать</button>`
+              ? `<button class="btn btn-ghost" data-action="edit-profile">✏ Редактировать</button>
+                 <button class="btn btn-ghost" data-action="logout" style="color:var(--danger);border-color:var(--danger)">🚪 Выйти</button>`
               : `<button class="btn ${data.isFollowing ? 'btn-ghost' : 'btn-primary'}" data-action="follow" data-state="${data.isFollowing ? '1' : '0'}">
-                   ${data.isFollowing ? '✓ Вы подписаны' : '＋ Подписаться'}</button>`
+                   ${data.isFollowing ? '✓ Вы подписаны' : '＋ Подписаться'}</button>
+                 <button class="btn btn-ghost" data-action="friend" data-relation="${data.relation || 'none'}" style="color:var(--accent);border-color:var(--accent)">${friendBtnLabel(data.relation)}</button>`
             }
             <button class="btn btn-ghost" data-action="message" ${isMe ? 'disabled' : ''}>💬 Написать</button>
           </div>
@@ -2099,6 +2183,22 @@ async function viewProfile(id) {
     if (!btn) return;
     const act = btn.dataset.action;
     if (act === 'edit-profile') go('/edit-profile');
+    if (act === 'logout') {
+      if (confirm('Выйти из аккаунта?')) logout();
+    }
+    if (act === 'friend') {
+      try {
+        const rel = btn.dataset.relation;
+        let res;
+        if (rel === 'friends') res = await api(`/users/${u.uid}/friend`, { method: 'DELETE' });
+        else if (rel === 'incoming') res = await api(`/users/${u.uid}/friend/accept`, { method: 'POST' });
+        else if (rel === 'outgoing') res = await api(`/users/${u.uid}/friend`, { method: 'DELETE' });
+        else res = await api(`/users/${u.uid}/friend`, { method: 'POST' });
+        btn.dataset.relation = res.relation;
+        btn.textContent = friendBtnLabel(res.relation);
+        toast(rel === 'incoming' && res.relation === 'friends' ? 'Вы друзья!' : undefined);
+      } catch (err) { toast(err.message, 'error'); }
+    }
     if (act === 'message') {
       const res = await api('/chats', { method: 'POST', body: { user_id: u.id } });
       go('/messages/' + res.uid);
@@ -2503,6 +2603,109 @@ function favCard(f) {
   });
   return el;
 }
+/* ---------- ДРУЗЬЯ ---------- */
+async function viewFriends() {
+  const view = $('#view');
+  view.innerHTML = `
+    <div class="page-title" style="margin-bottom:18px">👥 Друзья</div>
+    <div class="tabs" id="friend-tabs">
+      <button class="tab active" data-tab="friends">Друзья</button>
+      <button class="tab" data-tab="incoming">Входящие заявки</button>
+      <button class="tab" data-tab="outgoing">Исходящие заявки</button>
+    </div>
+    <div id="friend-list"></div>`;
+
+  const list = $('#friend-list', view);
+  let tab = 'friends';
+
+  function userRow(u, actions) {
+    const el = document.createElement('div');
+    el.className = 'user-row card';
+    el.style.marginBottom = '6px';
+    el.innerHTML = `
+      <a href="#/profile/${esc(u.uid)}" style="display:flex;align-items:center;gap:12px;flex:1;color:var(--text)">
+        <img class="avatar" src="${mediaUrl(u.avatar)}" alt="">
+        <div>
+          <div style="font-weight:700">${esc(u.name)}</div>
+          <div class="muted" style="font-size:12px">@${esc(u.username)}</div>
+        </div>
+      </a>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${actions}</div>`;
+    return el;
+  }
+
+  function bind(el, u) {
+    const msg = el.querySelector('[data-act="msg"]');
+    if (msg) msg.addEventListener('click', async () => {
+      const res = await api('/chats', { method: 'POST', body: { user_id: u.id } });
+      go('/messages/' + res.uid);
+    });
+    const accept = el.querySelector('[data-act="accept"]');
+    if (accept) accept.addEventListener('click', async () => {
+      try { await api(`/users/${u.uid}/friend/accept`, { method: 'POST' }); toast('Вы друзья!'); load(); }
+      catch (err) { toast(err.message, 'error'); }
+    });
+    const decline = el.querySelector('[data-act="decline"]');
+    if (decline) decline.addEventListener('click', async () => {
+      try { await api(`/users/${u.uid}/friend`, { method: 'DELETE' }); load(); }
+      catch (err) { toast(err.message, 'error'); }
+    });
+    const unfriend = el.querySelector('[data-act="unfriend"]');
+    if (unfriend) unfriend.addEventListener('click', async () => {
+      if (!confirm('Убрать из друзей?')) return;
+      try { await api(`/users/${u.uid}/friend`, { method: 'DELETE' }); load(); }
+      catch (err) { toast(err.message, 'error'); }
+    });
+  }
+
+  async function load() {
+    try {
+      const [fr, reqs] = await Promise.all([api('/users/list'), api('/users/requests')]);
+      renderTab(fr.friends, reqs);
+    } catch (err) { list.innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
+  }
+
+  function renderTab(friends, reqs) {
+    if (tab === 'friends') {
+      if (!friends.length) { list.innerHTML = `<div class="empty">Пока нет друзей. Добавьте людей на их страницах!</div>`; return; }
+      list.innerHTML = '';
+      friends.forEach((u) => {
+        const el = userRow(u, `<button class="btn btn-ghost btn-sm" data-act="msg">💬</button>
+          <button class="btn btn-ghost btn-sm" data-act="unfriend" style="color:var(--danger)">Убрать</button>`);
+        bind(el, u);
+        list.appendChild(el);
+      });
+    } else if (tab === 'incoming') {
+      if (!reqs.incoming.length) { list.innerHTML = `<div class="empty">Нет входящих заявок</div>`; return; }
+      list.innerHTML = '';
+      reqs.incoming.forEach((u) => {
+        const el = userRow(u, `<button class="btn btn-primary btn-sm" data-act="accept">Принять</button>
+          <button class="btn btn-ghost btn-sm" data-act="decline">Отклонить</button>`);
+        bind(el, u);
+        list.appendChild(el);
+      });
+    } else {
+      if (!reqs.outgoing.length) { list.innerHTML = `<div class="empty">Нет исходящих заявок</div>`; return; }
+      list.innerHTML = '';
+      reqs.outgoing.forEach((u) => {
+        const el = userRow(u, `<button class="btn btn-ghost btn-sm" data-act="decline">Отменить</button>`);
+        bind(el, u);
+        list.appendChild(el);
+      });
+    }
+  }
+
+  $('#friend-tabs', view).addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-tab]');
+    if (!btn) return;
+    tab = btn.dataset.tab;
+    view.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('active', b === btn));
+    load();
+  });
+
+  load();
+}
+
 /* ---------- ГРУППЫ ---------- */
 async function viewGroups() {
   const view = $('#view');

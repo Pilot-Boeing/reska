@@ -300,7 +300,58 @@ async function main() {
   r = await api('GET', `/api/search?q=${encodeURIComponent('smoke')}`, { jar: jarA });
   check('поиск', r.res.status === 200 && (r.data.users.length + r.data.posts.length) > 0);
 
-  /* 15. смена пароля и выход со всех устройств */
+  /* 15. друзья: заявка → входящая → принятие → список → удаление */
+  r = await api('GET', `/api/users/${userB.uid}`, { jar: jarA });
+  check('relation none до заявки', r.res.status === 200 && r.data.relation === 'none', r.data.relation);
+
+  r = await api('POST', `/api/users/${userB.uid}/friend`, { jar: jarA });
+  check('заявка в друзья отправлена', r.res.status === 200 && r.data.relation === 'outgoing', String(r.res.status));
+
+  r = await api('POST', `/api/users/${userB.uid}/friend`, { jar: jarA });
+  check('повторная заявка возвращает статус', r.res.status === 200 && r.data.relation === 'outgoing', String(r.res.status));
+
+  r = await api('GET', `/api/users/${userB.uid}`, { jar: jarA });
+  check('relation outgoing', r.data.relation === 'outgoing', r.data.relation);
+
+  r = await api('GET', '/api/users/requests', { jar: jarA });
+  check('исходящие заявки у отправителя', r.res.status === 200 && r.data.outgoing.some((u) => u.uid === userB.uid));
+
+  r = await api('GET', '/api/users/requests', { jar: jarB });
+  check('входящие заявки у получателя', r.res.status === 200 && r.data.incoming.some((u) => u.uid === adminUid));
+
+  r = await api('GET', '/api/users/list', { jar: jarA });
+  check('список друзей пока пуст', r.res.status === 200 && r.data.friends.length === 0);
+
+  r = await api('POST', `/api/users/${adminUid}/friend/accept`, { jar: jarB });
+  check('принятие заявки', r.res.status === 200 && r.data.relation === 'friends', String(r.res.status));
+
+  r = await api('GET', `/api/users/${userB.uid}`, { jar: jarA });
+  check('relation friends', r.data.relation === 'friends', r.data.relation);
+
+  r = await api('GET', '/api/users/list', { jar: jarA });
+  check('друг в списке', r.res.status === 200 && r.data.friends.some((u) => u.uid === userB.uid));
+
+  r = await api('GET', '/api/users/list', { jar: jarB });
+  check('друг в списке у второй стороны', r.res.status === 200 && r.data.friends.some((u) => u.uid === adminUid));
+
+  r = await api('POST', `/api/users/${userB.uid}/friend`, { jar: jarA });
+  check('заявка при дружбе отклонена', r.res.status === 400, String(r.res.status));
+
+  r = await api('DELETE', `/api/users/${userB.uid}/friend`, { jar: jarA });
+  check('удаление из друзей', r.res.status === 200 && r.data.relation === 'none', String(r.res.status));
+
+  r = await api('GET', `/api/users/${userB.uid}`, { jar: jarA });
+  check('relation none после удаления', r.data.relation === 'none', r.data.relation);
+
+  r = await api('DELETE', `/api/users/${userB.uid}/friend`, { jar: jarB });
+  check('заявка удалена другой стороной', r.res.status === 200, String(r.res.status));
+
+  r = await api('POST', `/api/users/${userB.uid}/friend`, { jar: jarA });
+  check('новая заявка после очистки', r.res.status === 200 && r.data.relation === 'outgoing');
+  r = await api('DELETE', `/api/users/${userB.uid}/friend`, { jar: jarA });
+  check('отмена исходящей заявки', r.res.status === 200 && r.data.relation === 'none');
+
+  /* 16. смена пароля и выход со всех устройств */
   r = await api('POST', '/api/auth/password', { body: { current_password: 'pass1234', new_password: 'newpass99' }, jar: jarA });
   check('смена пароля', r.res.status === 200, String(r.res.status));
   r = await api('POST', '/api/auth/logout-all', { jar: jarA });
@@ -308,13 +359,13 @@ async function main() {
   r = await api('GET', '/api/auth/me', { jar: jarA });
   check('сессия после logout-all закрыта', r.res.status === 401);
 
-  /* 16. телефон в профиле */
+  /* 17. телефон в профиле */
   r = await api('PUT', `/api/users/${userB.uid}`, { body: { name: 'B Smoke', phone: '+7 999 123-45-67' }, jar: jarB });
   check('обновление телефона', r.res.status === 200 && r.data.user.phone === '+7 999 123-45-67', String(r.res.status));
   r = await api('PUT', `/api/users/${userB.uid}`, { body: { name: 'B Smoke', phone: 'bad' }, jar: jarB });
   check('плохой телефон отклонён', r.res.status === 400);
 
-  /* 17. библиотека: конспекты и группы (серверное хранение) */
+  /* 18. библиотека: конспекты и группы (серверное хранение) */
   r = await api('GET', '/api/library/notes', { jar: jarB });
   check('список конспектов пуст', r.res.status === 200 && Array.isArray(r.data.notes));
   r = await api('POST', '/api/library/notes', { body: { title: 'Тактика', body: 'заметка #тест' }, jar: jarB });
