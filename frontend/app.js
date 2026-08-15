@@ -222,7 +222,10 @@ function pushToken() {
 
 async function registerPushToken(token) {
   if (!token) return;
-  try { await api('/push/token', { method: 'POST', body: { token, platform: 'android' } }); } catch (e) {}
+  try {
+    const platform = window.Capacitor && window.Capacitor.getPlatform ? window.Capacitor.getPlatform() : 'web';
+    await api('/push/token', { method: 'POST', body: { token, platform } });
+  } catch (e) {}
 }
 
 async function unregisterPushToken() {

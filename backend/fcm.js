@@ -23,10 +23,19 @@ let warned = false;
 
 function loadCred() {
   if (cachedCred) return cachedCred;
+  const envJson = process.env.FCM_SERVICE_ACCOUNT || '';
+  if (envJson.trim()) {
+    try {
+      cachedCred = JSON.parse(envJson);
+      return cachedCred;
+    } catch (e) {
+      console.warn('FCM: не удалось разобрать FCM_SERVICE_ACCOUNT:', e.message);
+    }
+  }
   if (!fs.existsSync(CRED_FILE)) {
     if (!warned) {
       warned = true;
-      console.warn('FCM: файл backend/fcm-service-account.json не найден — push-уведомления не отправляются.');
+      console.warn('FCM: файл backend/fcm-service-account.json не найден и не задан FCM_SERVICE_ACCOUNT — push-уведомления не отправляются.');
     }
     return null;
   }
