@@ -147,6 +147,53 @@ let activeChat = null;
 let chatsCache = [];
 let currentSearch = '';
 
+/* ---------- экран загрузки ---------- */
+function setSplashStatus(msg) {
+  const el = $('#splash-status');
+  if (el) el.textContent = msg;
+}
+
+function splashBusy(busy) {
+  const sp = $('.splash-spinner');
+  const rt = $('#splash-retry');
+  if (sp) sp.style.visibility = busy ? 'visible' : 'hidden';
+  if (rt) rt.classList.toggle('hidden', busy);
+}
+
+function hideSplash() {
+  const s = $('#splash');
+  if (!s) return;
+  s.classList.add('fade');
+  setTimeout(() => s.remove(), 400);
+}
+
+/* ---------- индикатор сети (интернет + сервер) ---------- */
+function showNetBanner(msg, kind) {
+  const b = $('#net-banner');
+  if (!b) return;
+  b.className = 'net-banner show ' + (kind === 'server' ? 'server' : '');
+  b.innerHTML = (kind === 'server' ? '<span class="nb-spin"></span>' : '⚠ ') + esc(msg);
+}
+
+function hideNetBanner() {
+  const b = $('#net-banner');
+  if (!b) return;
+  b.className = 'net-banner hidden';
+}
+
+function updateNetStatus() {
+  if (!navigator.onLine) {
+    showNetBanner('Нет подключения к интернету');
+  } else if (socket && !socket.connected) {
+    showNetBanner('Соединение с сервером потеряно, переподключение…', 'server');
+  } else {
+    hideNetBanner();
+  }
+}
+
+window.addEventListener('online', updateNetStatus);
+window.addEventListener('offline', updateNetStatus);
+
 /* ---------- E2EE (WebCrypto: ECDH P-256 + AES-GCM) ---------- */
 const E2EE = {
   STORE: 'reska_e2ee_v1',
@@ -355,6 +402,7 @@ function setActiveNav(route) {
 
 /* ---------- авторизация ---------- */
 function showAuth() {
+  hideSplash();
   $('#app').classList.add('hidden');
   $('#auth-screen').classList.remove('hidden');
   $('#auth-form').reset();
@@ -367,17 +415,29 @@ function showApp() {
 }
 
 async function boot() {
+  setSplashStatus('Проверка сессии…');
   try {
     const data = await api('/auth/me', { silent: true });
     me = data.user;
     afterLogin();
   } catch (e) {
-    showAuth();
+    if (e.status === 0) {
+      setSplashStatus('Нет связи с сервером');
+      splashBusy(false);
+      $('#splash-retry').addEventListener('click', () => {
+        setSplashStatus('Проверка сессии…');
+        splashBusy(true);
+        boot();
+      }, { once: true });
+    } else {
+      showAuth();
+    }
   }
 }
 
 async function afterLogin() {
   showApp();
+  hideSplash();
   updateNavUser();
   E2EE.pushPubKey(me.uid);
   initPush();
@@ -409,7 +469,6 @@ function sessionExpired() {
   toast('Сессия истекла, войдите заново', 'error');
   showAuth();
 }
-
 function updateNavUser() {
   $('#nav-avatar').src = mediaUrl(me.avatar);
   $('#nav-name').textContent = me.name;
@@ -439,6 +498,12 @@ async function connectSocket() {
   const data = await api('/auth/token', { silent: true }).catch(() => ({ token: null }));
   if (!data.token) return;
   socket = io({ auth: { token: data.token } });
+
+  socket.on('connect', updateNetStatus);
+  socket.on('disconnect', updateNetStatus);
+  socket.on('reconnect_attempt', updateNetStatus);
+  socket.on('reconnect', updateNetStatus);
+  socket.on('connect_error', updateNetStatus);
 
   socket.on('chat:message', async (payload) => {
     const mine = payload.message ? payload.message.sender_id === me.id : false;

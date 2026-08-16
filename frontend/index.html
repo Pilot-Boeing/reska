@@ -16,6 +16,19 @@
 </head>
 <body>
 
+  <!-- ============ ЭКРАН ЗАГРУЗКИ ============ -->
+  <div id="splash">
+    <div class="splash-inner">
+      <div class="auth-logo"><span class="logo-star">★</span>РЕСКА</div>
+      <div class="splash-spinner"></div>
+      <div class="splash-status" id="splash-status">Загрузка…</div>
+      <button class="btn btn-primary hidden" id="splash-retry">Повторить</button>
+    </div>
+  </div>
+
+  <!-- ============ ИНДИКАТОР СЕТИ ============ -->
+  <div id="net-banner" class="net-banner hidden"></div>
+
   <!-- ============ ЭКРАН АВТОРИЗАЦИИ ============ -->
   <div id="auth-screen" class="hidden">
     <div class="auth-bg"></div>
