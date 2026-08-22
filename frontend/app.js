@@ -746,9 +746,35 @@ function buildPost(post) {
   $('[data-action="toggle-comments"] .comment-count', node).textContent = post.comments || '';
   $('.comment-self-avatar', node).src = mediaUrl(me.avatar);
 
+  renderPostReactions($('.post-reactions', node), post.reactions);
+
   if (post.user_id === me.id || me.role === 'admin') $('.post-del', node).classList.remove('hidden');
 
   return node;
+}
+
+function renderPostReactions(container, reactions) {
+  if (!container) return;
+  container.innerHTML = '';
+  const list = (reactions && reactions.list) || [];
+  list.forEach((r) => {
+    const chip = document.createElement('button');
+    chip.className = 'reaction-chip' + ((reactions.myEmoji || []).includes(r.emoji) ? ' mine' : '');
+    chip.textContent = r.emoji + ' ' + r.count;
+    chip.addEventListener('click', () => {
+      const root = chip.closest('.post');
+      togglePostReaction(root.dataset.id, r.emoji, root);
+    });
+    container.appendChild(chip);
+  });
+}
+
+async function togglePostReaction(id, emoji, root) {
+  const box = $('.post-reactions', root);
+  try {
+    const res = await api(`/posts/${id}/react`, { method: 'POST', body: JSON.stringify({ emoji }), headers: { 'Content-Type': 'application/json' } });
+    renderPostReactions(box, res.reactions);
+  } catch (e) { toast(e.message, 'error'); }
 }
 
 const FEED_PAGE = 10;
@@ -847,16 +873,35 @@ function wirePostEvents(feed) {
     const id = root.dataset.uid || root.dataset.id;
     const action = actionBtn.dataset.action;
 
-    if (action === 'like') {
-      try {
-        const res = actionBtn.classList.contains('liked')
-          ? await api(`/posts/${id}/like`, { method: 'DELETE' })
-          : await api(`/posts/${id}/like`, { method: 'POST' });
-        actionBtn.classList.toggle('liked', res.liked);
-        actionBtn.querySelector('.pact-ico').textContent = res.liked ? '❤️' : '🤍';
-        actionBtn.querySelector('.like-count').textContent = res.likes || '';
-      } catch (err) { toast(err.message, 'error'); }
-    }
+      if (action === 'like') {
+        try {
+          const res = actionBtn.classList.contains('liked')
+            ? await api(`/posts/${id}/like`, { method: 'DELETE' })
+            : await api(`/posts/${id}/like`, { method: 'POST' });
+          actionBtn.classList.toggle('liked', res.liked);
+          actionBtn.querySelector('.pact-ico').textContent = res.liked ? '❤️' : '🤍';
+          actionBtn.querySelector('.like-count').textContent = res.likes || '';
+        } catch (err) { toast(err.message, 'error'); }
+      }
+
+      if (action === 'react') {
+        const existing = $('.reaction-picker', root);
+        if (existing) { existing.remove(); return; }
+        const picker = document.createElement('div');
+        picker.className = 'reaction-picker';
+        const emojis = ['👍', '❤️', '🔥', '😄', '🎉', '😮', '😢', '💯'];
+        emojis.forEach((em) => {
+          const b = document.createElement('button');
+          b.textContent = em;
+          b.addEventListener('click', () => {
+            picker.remove();
+            togglePostReaction(id, em, root);
+          });
+          picker.appendChild(b);
+        });
+        actionBtn.insertAdjacentElement('afterend', picker);
+      }
+
 
     if (action === 'toggle-comments') {
       const wrap = $('.comments-wrap', root);
@@ -1350,13 +1395,15 @@ async function openVideoOverlay(id) {
          </a>
          <span class="video-stats">👁 ${fmtViews(v.views)}</span>
          <span class="video-stats">${timeAgo(v.created_at)}</span>
-         <div class="watch-actions">
-           <button class="pact ${v.liked ? 'liked' : ''}" data-action="vlike">
-             <span class="pact-ico">${v.liked ? '❤️' : '🤍'}</span><span class="like-count">${v.likes || ''}</span>
-           </button>
-           <button class="pact" data-action="share"><span class="pact-ico">🔗</span><span>Поделиться</span></button>
-           ${v.user_id === me.id || me.role === 'admin' ? `<button class="pact pact-del" data-action="vdel"><span class="pact-ico">🗑</span><span>Удалить</span></button>` : ''}
-         </div>
+          <div class="watch-actions">
+            <button class="pact ${v.liked ? 'liked' : ''}" data-action="vlike">
+              <span class="pact-ico">${v.liked ? '❤️' : '🤍'}</span><span class="like-count">${v.likes || ''}</span>
+            </button>
+            <button class="pact" data-action="vreact" title="Реакция"><span class="pact-ico">😊</span></button>
+            <button class="pact" data-action="share"><span class="pact-ico">🔗</span><span>Поделиться</span></button>
+            ${v.user_id === me.id || me.role === 'admin' ? `<button class="pact pact-del" data-action="vdel"><span class="pact-ico">🗑</span><span>Удалить</span></button>` : ''}
+          </div>
+          <div class="post-reactions" id="video-reactions"></div>
        </div>
        ${v.description ? `<div class="watch-desc card">${linkifyTags(v.description)}</div>` : ''}
       <div class="comments-block card">
@@ -1392,6 +1439,28 @@ async function openVideoOverlay(id) {
   });
 
   $('[data-action="share"]', modal).addEventListener('click', () => shareLink('#/watch/' + id, v.title));
+
+  const vReactBtn = $('[data-action="vreact"]', modal);
+  renderPostReactions($('#video-reactions', modal), v.reactions);
+  vReactBtn.addEventListener('click', () => {
+    const picker = $('.reaction-picker', modal);
+    if (picker) { picker.remove(); return; }
+    const p = document.createElement('div');
+    p.className = 'reaction-picker';
+    ['👍', '❤️', '🔥', '😄', '🎉', '😮', '😢', '💯'].forEach((em) => {
+      const b = document.createElement('button');
+      b.textContent = em;
+      b.addEventListener('click', async () => {
+        p.remove();
+        try {
+          const res = await api(`/videos/${id}/react`, { method: 'POST', body: JSON.stringify({ emoji: em }), headers: { 'Content-Type': 'application/json' } });
+          renderPostReactions($('#video-reactions', modal), res.reactions);
+        } catch (e) { toast(e.message, 'error'); }
+      });
+      p.appendChild(b);
+    });
+    vReactBtn.insertAdjacentElement('afterend', p);
+  });
 
   const vdel = $('[data-action="vdel"]', modal);
   if (vdel) vdel.addEventListener('click', async () => {

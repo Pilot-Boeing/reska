@@ -555,6 +555,14 @@ async function main() {
   r = await api('POST', '/api/search/contacts', { body: { phones: ['+7 999 123-45-67'] }, jar: jarC });
   check('номер не утекает при совпадении', r.res.status === 200 && r.data.matches.length === 1 && !('phone' in r.data.matches[0].user));
 
+  // Реакции на постах (Этап 2)
+  r = await api('POST', '/api/posts', { body: { text: 'reaction test' }, jar: jarA });
+  const reactPostId = r.data.post.id;
+  r = await api('POST', '/api/posts/' + reactPostId + '/react', { body: { emoji: '🔥' }, jar: jarA });
+  check('реакция на пост добавляется', r.res.status === 200 && Array.isArray(r.data.reactions.list) && r.data.reactions.list.length === 1 && r.data.reactions.list[0].emoji === '🔥');
+  r = await api('POST', '/api/posts/' + reactPostId + '/react', { body: { emoji: '🔥' }, jar: jarA });
+  check('повторная реакция удаляет (toggle)', r.res.status === 200 && r.data.reactions.list.length === 0);
+
   server.kill();
   await new Promise((res) => server.once('exit', res));
   for (let i = 0; i < 5; i++) {

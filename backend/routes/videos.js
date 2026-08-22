@@ -26,7 +26,19 @@ function videoWithMeta(row, userId) {
   const liked = userId
     ? !!db.prepare('SELECT 1 FROM video_likes WHERE video_id = ? AND user_id = ?').get(row.id, userId)
     : false;
-  return { ...row, liked };
+  const reactions = userId
+    ? getVReactions(row.id, userId)
+    : getVReactions(row.id, null);
+  return { ...row, liked, reactions };
+}
+
+function getVReactions(id, userId) {
+  const agg = db
+    .prepare(`SELECT emoji, COUNT(*) AS n FROM video_reactions WHERE video_id = ? GROUP BY emoji ORDER BY n DESC, emoji`)
+    .all(id);
+  let myEmoji = [];
+  if (userId) myEmoji = db.prepare('SELECT emoji FROM video_reactions WHERE video_id = ? AND user_id = ?').all(id, userId).map((r) => r.emoji);
+  return { list: agg.map((r) => ({ emoji: r.emoji, count: r.n })), myEmoji };
 }
 
 function deleteMedia(relPath) {
@@ -137,6 +149,31 @@ router.delete('/:id/like', auth, (req, res) => {
   db.prepare('DELETE FROM video_likes WHERE video_id = ? AND user_id = ?').run(v.id, req.userId);
   const n = db.prepare('SELECT COUNT(*) AS n FROM video_likes WHERE video_id = ?').get(v.id).n;
   res.json({ liked: false, likes: n });
+});
+
+router.post('/:id/react', auth, (req, res) => {
+  const v = findByIdOrUid('videos', req.params.id);
+  if (!v) return res.status(404).json({ error: 'Видео не найдено' });
+  const emoji = String(req.body.emoji || '').trim();
+  if (!emoji) return res.status(400).json({ error: 'Укажите emoji' });
+  const existing = db.prepare('SELECT 1 FROM video_reactions WHERE video_id = ? AND user_id = ? AND emoji = ?').get(v.id, req.userId, emoji);
+  if (existing) {
+    db.prepare('DELETE FROM video_reactions WHERE video_id = ? AND user_id = ? AND emoji = ?').run(v.id, req.userId, emoji);
+  } else {
+    db.prepare('INSERT INTO video_reactions (video_id, user_id, emoji) VALUES (?, ?, ?)').run(v.id, req.userId, emoji);
+  }
+  if (!existing && v.user_id !== req.userId) {
+    notify(req.app, v.user_id, req.user, 'react', { body: `${emoji} ваше видео`, url: 'videos' });
+  }
+  res.json({ reactions: getVReactions(v.id, req.userId) });
+});
+
+router.delete('/:id/react', auth, (req, res) => {
+  const v = findByIdOrUid('videos', req.params.id);
+  if (!v) return res.status(404).json({ error: 'Видео не найдено' });
+  const emoji = String(req.body.emoji || '').trim();
+  db.prepare('DELETE FROM video_reactions WHERE video_id = ? AND user_id = ? AND emoji = ?').run(v.id, req.userId, emoji);
+  res.json({ reactions: getVReactions(v.id, req.userId) });
 });
 
 router.get('/:id/comments', (req, res) => {

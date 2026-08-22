@@ -24,7 +24,21 @@ function postWithMeta(row, userId) {
   const liked = userId
     ? !!db.prepare('SELECT 1 FROM post_likes WHERE post_id = ? AND user_id = ?').get(row.id, userId)
     : false;
-  return { ...row, liked };
+  const reactions = userId
+    ? getReactions('post_reactions', 'post_id', row.id, userId)
+    : getReactions('post_reactions', 'post_id', row.id, null);
+  return { ...row, liked, reactions };
+}
+
+function getReactions(table, col, id, userId) {
+  const agg = db
+    .prepare(`SELECT emoji, COUNT(*) AS n FROM ${table} WHERE ${col} = ? GROUP BY emoji ORDER BY n DESC, emoji`)
+    .all(id);
+  let myEmoji = [];
+  if (userId) {
+    myEmoji = db.prepare(`SELECT emoji FROM ${table} WHERE ${col} = ? AND user_id = ?`).all(id, userId).map((r) => r.emoji);
+  }
+  return { list: agg.map((r) => ({ emoji: r.emoji, count: r.n })), myEmoji };
 }
 
 function deleteMedia(relPath) {
@@ -104,6 +118,34 @@ router.delete('/:id/like', auth, (req, res) => {
   db.prepare('DELETE FROM post_likes WHERE post_id = ? AND user_id = ?').run(id, req.userId);
   const n = db.prepare('SELECT COUNT(*) AS n FROM post_likes WHERE post_id = ?').get(id).n;
   res.json({ liked: false, likes: n });
+});
+
+router.post('/:id/react', auth, (req, res) => {
+  const id = targetId('posts', req.params.id);
+  if (!id) return res.status(404).json({ error: 'Пост не найден' });
+  const emoji = String(req.body.emoji || '').trim();
+  if (!emoji) return res.status(400).json({ error: 'Укажите emoji' });
+  const existing = db.prepare('SELECT 1 FROM post_reactions WHERE post_id = ? AND user_id = ? AND emoji = ?').get(id, req.userId, emoji);
+  if (existing) {
+    db.prepare('DELETE FROM post_reactions WHERE post_id = ? AND user_id = ? AND emoji = ?').run(id, req.userId, emoji);
+  } else {
+    db.prepare('INSERT INTO post_reactions (post_id, user_id, emoji) VALUES (?, ?, ?)').run(id, req.userId, emoji);
+  }
+  const post = db.prepare('SELECT user_id FROM posts WHERE id = ?').get(id);
+  if (!existing && post && post.user_id !== req.userId) {
+    notify(req.app, post.user_id, req.user, 'react', { body: `${emoji} ваш пост`, url: 'feed' });
+  }
+  const reactions = getReactions('post_reactions', 'post_id', id, req.userId);
+  res.json({ reactions });
+});
+
+router.delete('/:id/react', auth, (req, res) => {
+  const id = targetId('posts', req.params.id);
+  if (!id) return res.status(404).json({ error: 'Пост не найден' });
+  const emoji = String(req.body.emoji || '').trim();
+  db.prepare('DELETE FROM post_reactions WHERE post_id = ? AND user_id = ? AND emoji = ?').run(id, req.userId, emoji);
+  const reactions = getReactions('post_reactions', 'post_id', id, req.userId);
+  res.json({ reactions });
 });
 
 function targetId(type, p) {
