@@ -374,6 +374,7 @@ function migrate() {
   addColumn('users', 'phone', 'TEXT DEFAULT \'\'');
   addColumn('users', 'phone_hash', 'TEXT DEFAULT \'\'');
   addColumn('posts', 'uid', 'TEXT');
+  addColumn('posts', 'repost_of', 'INTEGER');
   addColumn('videos', 'uid', 'TEXT');
   addColumn('comments', 'uid', 'TEXT');
   addColumn('chats', 'uid', 'TEXT');

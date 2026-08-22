@@ -740,6 +740,17 @@ function buildPost(post) {
     }
   }
 
+  const rq = $('.repost-quote', node);
+  if (post.repost) {
+    rq.classList.remove('hidden');
+    const r = post.repost;
+    let media = '';
+    if (r.media) media = r.media_type === 'image'
+      ? `<img class="repost-media" src="${esc(mediaUrl(r.media))}" loading="lazy">`
+      : `<video class="repost-media" src="${esc(mediaUrl(r.media))}" controls preload="metadata"></video>`;
+    rq.innerHTML = `<a class="repost-head" href="#/profile/${r.username}">${esc(r.name || r.username)}</a><div class="repost-text">${linkifyTags(r.text || '')}</div>${media}`;
+  }
+
   const likeBtn = $('[data-action="like"]', node);
   likeBtn.classList.toggle('liked', !!post.liked);
   likeBtn.querySelector('.pact-ico').textContent = post.liked ? '❤️' : '🤍';
@@ -917,6 +928,15 @@ function wirePostEvents(feed) {
     if (action === 'share') {
       const authorHref = $('.post-avatar-link', root).href;
       shareLink(authorHref, 'Поделиться профилем');
+    }
+
+    if (action === 'repost') {
+      try {
+        const res = await api('/posts', { method: 'POST', body: JSON.stringify({ repost_of: root.dataset.id }), headers: { 'Content-Type': 'application/json' } });
+        toast('Репост добавлен');
+        const feed = $('#post-feed');
+        if (feed) feed.insertBefore(buildPost(res.post), feed.firstChild);
+      } catch (err) { toast(err.message, 'error'); }
     }
 
     if (action === 'del-post') {

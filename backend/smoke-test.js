@@ -575,6 +575,15 @@ async function main() {
   r = await api('POST', '/api/chats/forward', { body: { message_id: firstMsgId, chat_uids: [chatUid] }, jar: jarA });
   check('пересылка сообщения в другой чат', r.res.status === 200 && r.data.ok === true && r.data.count === 1);
 
+  // Репосты постов (Этап 2)
+  r = await api('POST', '/api/posts', { body: { text: 'оригинальный пост' }, jar: jarA });
+  const origPostId = r.data.post.id;
+  r = await api('POST', '/api/posts', { body: { repost_of: origPostId }, jar: jarA });
+  check('репост поста создаётся с цитатой', r.res.status === 201 && r.data.post.repost && r.data.post.repost.id === origPostId);
+  r = await api('GET', '/api/posts', { jar: jarA });
+  const repostInFeed = r.data.posts.find((p) => p.repost && p.repost.id === origPostId);
+  check('репост отображается в ленте с данными оригинала', !!repostInFeed);
+
   server.kill();
   await new Promise((res) => server.once('exit', res));
   for (let i = 0; i < 5; i++) {

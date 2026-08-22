@@ -13,10 +13,15 @@ const router = express.Router();
 
 const POST_QUERY = `
   SELECT p.id, p.uid, p.text, p.media, p.media_type, p.created_at,
-         p.user_id, u.uid AS author_uid, u.username, u.name, u.avatar,
+         p.user_id, p.repost_of,
+         u.uid AS author_uid, u.username, u.name, u.avatar,
          (SELECT COUNT(*) FROM post_likes pl WHERE pl.post_id = p.id) AS likes,
-         (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comments
+         (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comments,
+         rp.id AS r_id, ru.name AS r_name, ru.username AS r_username, ru.avatar AS r_avatar,
+         rp.text AS r_text, rp.media AS r_media, rp.media_type AS r_media_type
   FROM posts p JOIN users u ON u.id = p.user_id
+  LEFT JOIN posts rp ON rp.id = p.repost_of
+  LEFT JOIN users ru ON ru.id = rp.user_id
 `;
 
 function postWithMeta(row, userId) {
@@ -27,7 +32,10 @@ function postWithMeta(row, userId) {
   const reactions = userId
     ? getReactions('post_reactions', 'post_id', row.id, userId)
     : getReactions('post_reactions', 'post_id', row.id, null);
-  return { ...row, liked, reactions };
+  const repost = row.r_id
+    ? { id: row.r_id, name: row.r_name, username: row.r_username, avatar: row.r_avatar, text: row.r_text, media: row.r_media, media_type: row.r_media_type }
+    : null;
+  return { ...row, liked, reactions, repost };
 }
 
 function getReactions(table, col, id, userId) {
@@ -63,25 +71,34 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', auth, uploadPostMedia('media'), (req, res) => {
-  const text = sanitizeText(req.body.text, 5000);
+  const repostOf = Number(req.body.repost_of) || 0;
+  let text = sanitizeText(req.body.text, 5000);
   let media = '';
   let mediaType = '';
   if (req.file) {
     media = `posts/${req.file.filename}`;
     mediaType = String(req.file.mimetype).startsWith('image/') ? 'image' : 'video';
   }
-  if (!text && !media) return res.status(400).json({ error: 'Пост не может быть пустым' });
+  if (repostOf) {
+    const orig = db.prepare('SELECT id FROM posts WHERE id = ?').get(repostOf);
+    if (!orig) return res.status(404).json({ error: 'Оригинальный пост не найден' });
+    if (!text && !media) text = ''; // репост может быть без текста
+  } else if (!text && !media) {
+    return res.status(400).json({ error: 'Пост не может быть пустым' });
+  }
 
   const r = db
-    .prepare('INSERT INTO posts (uid, user_id, text, media, media_type) VALUES (?, ?, ?, ?, ?)')
-    .run(randomUid(), req.userId, text, media, mediaType);
+    .prepare('INSERT INTO posts (uid, user_id, text, media, media_type, repost_of) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(randomUid(), req.userId, text, media, mediaType, repostOf || null);
   const row = db.prepare(`${POST_QUERY} WHERE p.id = ?`).get(Number(r.lastInsertRowid));
-  log('post_create', { req, userId: req.userId, meta: { postId: row.id, hasMedia: !!media } });
-  notifyFollowers(
-    req.userId,
-    { title: req.user.name, body: 'опубликовал(а) новый пост', data: { url: 'feed' } },
-    req.app.get('onlineUsers')
-  );
+  log('post_create', { req, userId: req.userId, meta: { postId: row.id, hasMedia: !!media, repost: !!repostOf } });
+  if (!repostOf) {
+    notifyFollowers(
+      req.userId,
+      { title: req.user.name, body: 'опубликовал(а) новый пост', data: { url: 'feed' } },
+      req.app.get('onlineUsers')
+    );
+  }
   res.status(201).json({ post: postWithMeta(row, req.userId) });
 });
 
