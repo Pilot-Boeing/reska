@@ -800,7 +800,8 @@ async function viewFeed(reset = true) {
   const view = $('#view');
   if (reset) {
     feedState = { before: 0, hasMore: true, loading: false, observer: null };
-    view.innerHTML = `<div class="feed" id="post-feed"></div>`;
+    view.innerHTML = `<div class="stories-bar" id="stories-bar"></div><div class="feed" id="post-feed"></div>`;
+    loadStoriesBar();
   }
   const feed = $('#post-feed');
   if (!feed) return;
@@ -849,6 +850,86 @@ function setupFeedObserver(feed) {
     if (entries.some((e) => e.isIntersecting)) viewFeed(false);
   }, { root: null, rootMargin: '700px' });
   feedState.observer.observe(feed);
+}
+
+async function loadStoriesBar() {
+  const bar = $('#stories-bar');
+  if (!bar) return;
+  let groups = [];
+  try { groups = (await api('/stories')).groups || []; } catch (e) { bar.style.display = 'none'; return; }
+  if (!groups.length) { bar.style.display = 'none'; return; }
+  bar.style.display = '';
+  bar.innerHTML = '';
+  const myBtn = document.createElement('button');
+  myBtn.className = 'story-avatar add';
+  myBtn.innerHTML = `<span class="story-ring"><img class="avatar sm" src="${mediaUrl(me.avatar)}" alt=""></span><span class="story-plus">+</span><span class="story-name">Ваша</span>`;
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*,video/*'; inp.hidden = true;
+  myBtn.addEventListener('click', () => inp.click());
+  inp.addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const fd = new FormData();
+    fd.append('media', f);
+    try { await api('/stories', { method: 'POST', body: fd }); toast('Story добавлена'); loadStoriesBar(); }
+    catch (err) { toast(err.message, 'error'); }
+  });
+  bar.appendChild(myBtn);
+  bar.appendChild(inp);
+  groups.forEach((g, gi) => {
+    const seen = g.stories.every((s) => s.viewed);
+    const el = document.createElement('button');
+    el.className = 'story-avatar' + (seen ? ' seen' : '');
+    el.innerHTML = `<span class="story-ring"><img class="avatar sm" src="${mediaUrl(g.user.avatar)}" alt=""></span><span class="story-name">${esc(g.user.name || g.user.username)}</span>`;
+    el.addEventListener('click', () => openStoryViewer(groups, gi));
+    bar.appendChild(el);
+  });
+}
+
+let storyTimer = null;
+function openStoryViewer(groups, gi) {
+  const group = groups[gi];
+  let si = 0;
+  const overlay = document.createElement('div');
+  overlay.className = 'story-overlay';
+  overlay.innerHTML = `
+    <div class="story-progress"><div class="story-progress-bar"></div></div>
+    <div class="story-top">
+      <img class="avatar sm" src="${mediaUrl(group.user.avatar)}" alt="">
+      <b>${esc(group.user.name || group.user.username)}</b>
+      <button class="story-close">✕</button>
+    </div>
+    <div class="story-media"></div>
+    <button class="story-nav prev">‹</button>
+    <button class="story-nav next">›</button>`;
+  $('#modal-root').appendChild(overlay);
+
+  function render() {
+    const s = group.stories[si];
+    const mediaEl = $('.story-media', overlay);
+    if (s.media_type === 'image') mediaEl.innerHTML = `<img src="${esc(mediaUrl(s.media))}" alt="">`;
+    else mediaEl.innerHTML = `<video src="${esc(mediaUrl(s.media))}" autoplay controls></video>`;
+    if (!s.viewed) api('/stories/' + s.id + '/view', { method: 'POST' }).catch(() => {});
+    const barEl = $('.story-progress-bar', overlay);
+    barEl.style.transition = 'none'; barEl.style.width = '0%';
+    requestAnimationFrame(() => { barEl.style.transition = 'width 5s linear'; barEl.style.width = '100%'; });
+    if (storyTimer) clearTimeout(storyTimer);
+    storyTimer = setTimeout(next, 5000);
+  }
+  function next() {
+    if (si < group.stories.length - 1) { si++; render(); }
+    else if (gi < groups.length - 1) { const ng = groups[gi + 1]; close(); openStoryViewer(groups, gi + 1); }
+    else close();
+  }
+  function prev() {
+    if (si > 0) { si--; render(); }
+    else if (gi > 0) { close(); openStoryViewer(groups, gi - 1); }
+  }
+  function close() { if (storyTimer) clearTimeout(storyTimer); overlay.remove(); loadStoriesBar(); }
+  $('.story-close', overlay).addEventListener('click', close);
+  $('.story-nav.next', overlay).addEventListener('click', next);
+  $('.story-nav.prev', overlay).addEventListener('click', prev);
+  render();
 }
 
 function skeletonCards(n) {

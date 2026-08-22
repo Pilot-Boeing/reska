@@ -601,6 +601,14 @@ async function main() {
   r = await api('DELETE', '/api/chats/' + chatUid + '/mute', { jar: jarA });
   check('mute чата выключается', r.res.status === 200 && r.data.muted === false);
 
+  // Этап 4 — Stories
+  const storyForm = new FormData();
+  storyForm.append('media', new Blob([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')], { type: 'image/png' }), 's.png');
+  r = await api('POST', '/api/stories', { body: storyForm, jar: jarA, raw: true });
+  check('story создаётся', r.res.status === 201 && r.data.ok === true);
+  r = await api('GET', '/api/stories', { jar: jarA });
+  check('story появляется в ленте', Array.isArray(r.data.groups) && r.data.groups.some((g) => g.stories.length));
+
   server.kill();
   await new Promise((res) => server.once('exit', res));
   for (let i = 0; i < 5; i++) {

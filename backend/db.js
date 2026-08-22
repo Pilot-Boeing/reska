@@ -28,7 +28,9 @@ const uploadSubs = () => [
   path.join(UPLOAD_DIR, 'posts'),
   path.join(UPLOAD_DIR, 'videos'),
   path.join(UPLOAD_DIR, 'thumbs'),
-  path.join(UPLOAD_DIR, 'chats')
+  path.join(UPLOAD_DIR, 'chats'),
+  path.join(UPLOAD_DIR, 'covers'),
+  path.join(UPLOAD_DIR, 'stories')
 ];
 
 if (!safeMkdir(uploadSubs())) {
@@ -45,6 +47,7 @@ if (!safeMkdir([path.dirname(DB_PATH)])) {
 
 const AVATAR_DIR = path.join(UPLOAD_DIR, 'avatars');
 const COVER_DIR = path.join(UPLOAD_DIR, 'covers');
+const STORY_DIR = path.join(UPLOAD_DIR, 'stories');
 const POST_DIR = path.join(UPLOAD_DIR, 'posts');
 const VIDEO_DIR = path.join(UPLOAD_DIR, 'videos');
 const THUMB_DIR = path.join(UPLOAD_DIR, 'thumbs');
@@ -412,6 +415,21 @@ function migrate() {
       chat_id INTEGER NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
       PRIMARY KEY (user_id, chat_id)
     );
+    CREATE TABLE IF NOT EXISTS stories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      uid TEXT UNIQUE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      media TEXT NOT NULL,
+      media_type TEXT NOT NULL DEFAULT 'image',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS story_views (
+      story_id INTEGER NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (story_id, user_id)
+    );
   `);
 
   for (const t of ['users', 'posts', 'videos', 'comments', 'chats']) ensureUid(t);
@@ -449,6 +467,7 @@ module.exports = {
   UPLOAD_DIR,
   AVATAR_DIR,
   COVER_DIR,
+  STORY_DIR,
   POST_DIR,
   VIDEO_DIR,
   THUMB_DIR,
