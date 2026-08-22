@@ -118,8 +118,12 @@ router.post('/', auth, (req, res) => {
   const MESSAGE_QUERY = `
   SELECT m.id, m.chat_id, m.sender_id, m.text, m.e2ee, m.read, m.edited, m.created_at,
          m.media, m.media_type, m.media_name, m.media_mime, m.media_size, m.media_duration,
-         u.uid AS sender_uid, u.username, u.name, u.avatar
+         m.reply_to,
+         u.uid AS sender_uid, u.username, u.name, u.avatar,
+         r.id AS reply_id, ru.name AS reply_name, r.text AS reply_text, r.media_type AS reply_media
   FROM messages m JOIN users u ON u.id = m.sender_id
+  LEFT JOIN messages r ON r.id = m.reply_to
+  LEFT JOIN users ru ON ru.id = r.sender_id
 `;
 
 function reactionsFor(messageId) {
@@ -136,7 +140,10 @@ function messageWithMeta(row, userId) {
     .prepare('SELECT emoji FROM message_reactions WHERE message_id = ? AND user_id = ?')
     .all(row.id, userId)
     .map((r) => r.emoji);
-  return { ...row, reactions, myEmoji };
+  const reply = row.reply_id
+    ? { id: row.reply_id, name: row.reply_name, text: row.reply_text, media_type: row.reply_media }
+    : null;
+  return { ...row, reactions, myEmoji, reply };
 }
 
 function socketFor(io, otherId) {
@@ -201,12 +208,18 @@ router.post('/:id/messages', auth, (req, res, next) => {
     return res.status(400).json({ error: String(req.file.error) });
   }
 
+  let replyTo = null;
+  if (req.body.reply_to) {
+    const orig = db.prepare('SELECT id, chat_id FROM messages WHERE id = ?').get(Number(req.body.reply_to));
+    if (orig && orig.chat_id === chat.id) replyTo = orig.id;
+  }
+
   const r = db
     .prepare(
-      `INSERT INTO messages (chat_id, sender_id, text, e2ee, media, media_type, media_name, media_mime, media_size, media_duration)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO messages (chat_id, sender_id, text, e2ee, media, media_type, media_name, media_mime, media_size, media_duration, reply_to)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(chat.id, req.userId, text, e2ee, media, mediaType, mediaName, mediaMime, mediaSize, mediaDuration);
+    .run(chat.id, req.userId, text, e2ee, media, mediaType, mediaName, mediaMime, mediaSize, mediaDuration, replyTo);
   const message = messageWithMeta(
     db.prepare(`${MESSAGE_QUERY} WHERE m.id = ?`).get(Number(r.lastInsertRowid)),
     req.userId

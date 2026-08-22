@@ -563,6 +563,14 @@ async function main() {
   r = await api('POST', '/api/posts/' + reactPostId + '/react', { body: { emoji: '🔥' }, jar: jarA });
   check('повторная реакция удаляет (toggle)', r.res.status === 200 && r.data.reactions.list.length === 0);
 
+  // Реплаи в чате (Этап 2)
+  r = await api('POST', '/api/chats/self', { jar: jarA });
+  const selfUid = r.data.uid;
+  r = await api('POST', '/api/chats/' + selfUid + '/messages', { body: { text: 'первое' }, jar: jarA });
+  const firstMsgId = r.data.message.id;
+  r = await api('POST', '/api/chats/' + selfUid + '/messages', { body: { text: 'ответ', reply_to: firstMsgId }, jar: jarA });
+  check('реплай в чате сохраняет reply_to', r.res.status === 201 && r.data.message.reply && r.data.message.reply.id === firstMsgId);
+
   server.kill();
   await new Promise((res) => server.once('exit', res));
   for (let i = 0; i < 5; i++) {

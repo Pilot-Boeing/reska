@@ -387,6 +387,7 @@ function migrate() {
   addColumn('messages', 'media_mime', "TEXT DEFAULT ''");
   addColumn('messages', 'media_size', 'INTEGER NOT NULL DEFAULT 0');
   addColumn('messages', 'media_duration', 'REAL NOT NULL DEFAULT 0');
+  addColumn('messages', 'reply_to', 'INTEGER');
   addColumn('sessions', 'device_id', 'TEXT');
   addColumn('sessions', 'ip_hash', 'TEXT');
   addColumn('sessions', 'ua_hash', 'TEXT');

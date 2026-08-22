@@ -146,6 +146,7 @@ let activeChatUid = null;
 let activeChat = null;
 let chatsCache = [];
 let chatMsgState = null;
+let chatReplyTarget = null;
 let currentSearch = '';
 
 /* ---------- экран загрузки ---------- */
@@ -1697,6 +1698,10 @@ async function openChat(chatUid) {
         <input type="text" placeholder="Сообщение..." autocomplete="off" maxlength="4000" id="chat-text">
         <button type="submit" class="btn btn-primary" id="chat-send">➤</button>
       </form>
+      <div class="chat-reply-bar hidden" id="chat-reply-bar">
+        <div class="reply-quote"><b class="reply-name"></b><span class="reply-text"></span></div>
+        <button type="button" class="reply-cancel" id="reply-cancel">✕</button>
+      </div>
     </div>`;
 
   $('.chat-back', view).addEventListener('click', () => go('/messages'));
@@ -1709,6 +1714,16 @@ async function openChat(chatUid) {
   for (const m of data.messages) msgs.push(await decryptMessage(m, chatUid));
   msgs.forEach((m) => appendMessage(m));
   scrollChat();
+
+  chatReplyTarget = null;
+  const replyBar = $('#chat-reply-bar', view);
+  if (replyBar) {
+    replyBar.classList.add('hidden');
+    $('#reply-cancel', view).addEventListener('click', () => {
+      chatReplyTarget = null;
+      replyBar.classList.add('hidden');
+    });
+  }
 
   chatMsgState = {
     chatUid,
@@ -1947,6 +1962,10 @@ async function openChat(chatUid) {
           }
         }
       }
+      if (chatReplyTarget) {
+        if (fd) fd.append('reply_to', String(chatReplyTarget));
+        else body.reply_to = chatReplyTarget;
+      }
       input.value = '';
       if (attach) revokeAttach();
       const res = await api(`/chats/${chatUid}/messages`, { method: 'POST', body: fd || body });
@@ -1954,6 +1973,9 @@ async function openChat(chatUid) {
       appendMessage(m);
       scrollChat();
       refreshChatList();
+      chatReplyTarget = null;
+      const rb = $('#chat-reply-bar');
+      if (rb) rb.classList.add('hidden');
     } catch (err) { toast(err.message, 'error'); }
   });
 
@@ -2047,6 +2069,18 @@ function captionNode(m) {
   return cap;
 }
 
+function setChatReply(mid, name, text, mediaType) {
+  chatReplyTarget = mid;
+  const bar = $('#chat-reply-bar');
+  if (!bar) return;
+  const rt = mediaType ? 'Вложение' : '';
+  bar.querySelector('.reply-name').textContent = name || 'Пользователь';
+  bar.querySelector('.reply-text').textContent = (text || rt || '').slice(0, 90);
+  bar.classList.remove('hidden');
+  const input = $('input#chat-text');
+  if (input) input.focus();
+}
+
 function appendMessage(m, atTop) {
   const container = $('#chat-messages');
   if (!container) return;
@@ -2062,6 +2096,15 @@ function appendMessage(m, atTop) {
     div.insertBefore(author, $('.msg-bubble', node));
   }
   const bubble = $('.msg-bubble', node);
+  if (m.reply) {
+    const rt = m.reply.media_type
+      ? (m.reply.media_type === 'image' ? '🖼 Фото' : m.reply.media_type === 'video' ? '🎬 Видео' : m.reply.media_type === 'audio' ? '🎤 Аудио' : m.reply.media_type === 'round' ? '⭕ Кружок' : '📎 Файл')
+      : '';
+    const rq = document.createElement('div');
+    rq.className = 'msg-reply';
+    rq.innerHTML = `<span class="msg-reply-name">${esc(m.reply.name || 'Пользователь')}</span><span class="msg-reply-text">${esc((m.reply.text || rt || 'Вложение').slice(0, 90))}</span>`;
+    div.insertBefore(rq, bubble);
+  }
   if (m.media) {
     bubble.appendChild(mediaNode(m));
     if (m.text) bubble.appendChild(captionNode(m));
@@ -2112,6 +2155,12 @@ function appendMessage(m, atTop) {
     }
   });
   actions.appendChild(react);
+
+  const replyBtn = document.createElement('button');
+  replyBtn.textContent = '↩';
+  replyBtn.title = 'Ответить';
+  replyBtn.addEventListener('click', () => setChatReply(m.id, m.sender_id === me.id ? (me.name || 'Вы') : displayName({ uid: m.sender_uid, name: m.name }), m.text, m.media_type));
+  actions.appendChild(replyBtn);
   div.appendChild(actions);
   const rx = m.reactions && m.reactions.length ? m.reactions : null;
   if (rx) {

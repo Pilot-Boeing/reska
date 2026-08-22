@@ -1095,6 +1095,29 @@ textarea { resize: vertical; }
   color: var(--text); display: inline-flex; align-items: center; gap: 4px;
 }
 .reaction-chip.mine { border-color: var(--accent); }
+.msg-reply {
+  border-left: 3px solid var(--primary); background: var(--bg2);
+  padding: 5px 9px; border-radius: 8px; margin-bottom: 5px; font-size: 12px;
+  display: flex; flex-direction: column; gap: 2px; opacity: 0.9;
+}
+.msg-reply-name { font-weight: 700; color: var(--primary); }
+.msg-reply-text { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+.chat-reply-bar {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  background: var(--bg2); border-top: 1px solid var(--border);
+}
+.chat-reply-bar.hidden { display: none; }
+.reply-quote { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+.reply-quote .reply-name { font-weight: 700; color: var(--primary); font-size: 12px; }
+.reply-quote .reply-text { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.reply-cancel { background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; }
+.post-reactions { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 2px; }
+.reaction-chip {
+  border: 1px solid var(--border); background: var(--card3);
+  border-radius: 12px; padding: 2px 8px; font-size: 12px; cursor: pointer;
+  color: var(--text); display: inline-flex; align-items: center; gap: 4px;
+}
+.reaction-chip.mine { border-color: var(--accent); }
 .reaction-picker { display: flex; gap: 4px; padding: 6px; background: var(--card3); border-radius: 12px; margin-top: 4px; }
 .reaction-picker button { background: none; border: none; font-size: 17px; cursor: pointer; padding: 2px; }
 
