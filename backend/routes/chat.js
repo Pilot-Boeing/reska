@@ -272,6 +272,41 @@ function mediaPreview(message, rawText) {
   }
 }
 
+router.post('/forward', auth, (req, res) => {
+  const msgId = Number(req.body.message_id);
+  const chatUids = Array.isArray(req.body.chat_uids) ? req.body.chat_uids.map(String).filter(Boolean) : [];
+  if (!msgId || !chatUids.length) return res.status(400).json({ error: 'Укажите сообщение и чаты' });
+  const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(msgId);
+  if (!msg) return res.status(404).json({ error: 'Сообщение не найдено' });
+  if (!chatForUser(String(msg.chat_id), req.userId)) return res.status(403).json({ error: 'Нет доступа к исходному сообщению' });
+  const io = req.app.get('io');
+  let count = 0;
+  for (const uid of chatUids) {
+    const t = chatForUser(uid, req.userId);
+    if (!t || t.id === msg.chat_id) continue;
+    const r = db
+      .prepare(
+        `INSERT INTO messages (chat_id, sender_id, text, e2ee, media, media_type, media_name, media_mime, media_size, media_duration)
+         VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(t.id, req.userId, msg.text, msg.media, msg.media_type, msg.media_name, msg.media_mime, msg.media_size, msg.media_duration);
+    const message = messageWithMeta(
+      db.prepare(`${MESSAGE_QUERY} WHERE m.id = ?`).get(Number(r.lastInsertRowid)),
+      req.userId
+    );
+    const targets = otherIds(t, req.userId);
+    if (io) {
+      io.to(`user:${req.userId}`).emit('chat:message', { message, chatId: t.id, chatUid: t.uid });
+      targets.forEach((id) => io.to(`user:${id}`).emit('chat:message', { message, chatId: t.id, chatUid: t.uid }));
+    }
+    targets.forEach((id) =>
+      notify(req.app, id, req.user, 'message', { body: '📨 Пересланное сообщение', url: `messages/${t.uid}` })
+    );
+    count++;
+  }
+  res.json({ ok: true, count });
+});
+
 router.post('/:id/read', auth, (req, res) => {
   const chat = chatForUser(req.params.id, req.userId);
   if (!chat) return res.status(403).json({ error: 'Нет доступа к чату' });

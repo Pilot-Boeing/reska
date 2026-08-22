@@ -2081,6 +2081,37 @@ function setChatReply(mid, name, text, mediaType) {
   if (input) input.focus();
 }
 
+function openForwardModal(messageId) {
+  if (!chatsCache.length) { toast('Нет чатов для пересылки', 'error'); return; }
+  const modal = document.createElement('div');
+  modal.className = 'modal-backdrop';
+  let items = '';
+  chatsCache.forEach((c) => {
+    const name = c.kind === 'group' ? c.name : (c.other && c.other.id === me.id ? '📝 Сообщения себе' : displayName(c.other));
+    items += `<label class="fwd-item"><input type="checkbox" value="${esc(c.uid)}"><span>${esc(name)}</span></label>`;
+  });
+  modal.innerHTML = `
+    <div class="modal card">
+      <button class="close-x">✕</button>
+      <h2 class="page-title">Переслать сообщение</h2>
+      <div class="fwd-list">${items}</div>
+      <button class="btn btn-primary btn-block" id="fwd-send">Отправить</button>
+    </div>`;
+  $('#modal-root').appendChild(modal);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal || e.target.classList.contains('close-x')) modal.remove();
+  });
+  $('#fwd-send', modal).addEventListener('click', async () => {
+    const uids = $$('input:checked', modal).map((i) => i.value);
+    if (!uids.length) { toast('Выберите чат', 'error'); return; }
+    try {
+      const r = await api('/chats/forward', { method: 'POST', body: JSON.stringify({ message_id: messageId, chat_uids: uids }), headers: { 'Content-Type': 'application/json' } });
+      toast(`Переслано в ${r.count} чат(ов)`);
+      modal.remove();
+    } catch (e) { toast(e.message, 'error'); }
+  });
+}
+
 function appendMessage(m, atTop) {
   const container = $('#chat-messages');
   if (!container) return;
@@ -2161,6 +2192,12 @@ function appendMessage(m, atTop) {
   replyBtn.title = 'Ответить';
   replyBtn.addEventListener('click', () => setChatReply(m.id, m.sender_id === me.id ? (me.name || 'Вы') : displayName({ uid: m.sender_uid, name: m.name }), m.text, m.media_type));
   actions.appendChild(replyBtn);
+
+  const fwd = document.createElement('button');
+  fwd.textContent = '➡';
+  fwd.title = 'Переслать';
+  fwd.addEventListener('click', () => openForwardModal(m.id));
+  actions.appendChild(fwd);
   div.appendChild(actions);
   const rx = m.reactions && m.reactions.length ? m.reactions : null;
   if (rx) {

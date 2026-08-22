@@ -571,6 +571,10 @@ async function main() {
   r = await api('POST', '/api/chats/' + selfUid + '/messages', { body: { text: 'ответ', reply_to: firstMsgId }, jar: jarA });
   check('реплай в чате сохраняет reply_to', r.res.status === 201 && r.data.message.reply && r.data.message.reply.id === firstMsgId);
 
+  // Пересылка сообщений (Этап 2)
+  r = await api('POST', '/api/chats/forward', { body: { message_id: firstMsgId, chat_uids: [chatUid] }, jar: jarA });
+  check('пересылка сообщения в другой чат', r.res.status === 200 && r.data.ok === true && r.data.count === 1);
+
   server.kill();
   await new Promise((res) => server.once('exit', res));
   for (let i = 0; i < 5; i++) {
