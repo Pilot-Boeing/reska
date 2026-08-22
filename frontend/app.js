@@ -373,6 +373,10 @@ async function render() {
       case 'groups': viewGroups(); break;
       case 'friends': await viewFriends(); break;
       case 'notifications': await viewNotifications(); break;
+      case 'settings':
+        if (segs[1] === 'notifications') await viewNotifSettings();
+        else await viewFeed();
+        break;
       default: await viewFeed();
     }
     window.scrollTo(0, 0);
@@ -1689,6 +1693,7 @@ async function openChat(chatUid) {
     head = `<b>${esc(chat.name)}</b>
       <span class="muted" style="font-size:12px">${chat.member_count || 1} участн.</span>
       <button class="btn btn-ghost btn-sm group-members-btn" style="margin-left:auto">👥 Состав</button>
+      <button class="btn btn-ghost btn-sm chat-mute" id="chat-mute" title="Без звука">${chat.muted ? '🔕' : '🔔'}</button>
       <button class="btn btn-ghost btn-sm chat-del" title="Удалить группу">🗑</button>`;
   } else if (isSelf) {
     head = `<img class="avatar sm" src="${mediaUrl(chat.other.avatar)}" alt="">
@@ -1699,6 +1704,7 @@ async function openChat(chatUid) {
     head = `<a href="#/profile/${esc(chat.other.uid)}"><img class="avatar sm" src="${mediaUrl(chat.other.avatar)}" alt=""></a>
       <b>${esc(displayName(chat.other))}</b>
       <span class="e2ee-tag" title="Сообщения шифруются на вашем устройстве (E2EE)">🔒 E2EE</span>
+      <button class="btn btn-ghost btn-sm chat-mute" id="chat-mute" title="Без звука">${chat.muted ? '🔕' : '🔔'}</button>
       <button class="btn btn-ghost btn-sm chat-del" title="Удалить чат">🗑</button>`;
   }
   view.innerHTML = `
@@ -1730,6 +1736,15 @@ async function openChat(chatUid) {
   if (mb) mb.addEventListener('click', () => openGroupMembers(chat));
   const del = $('.chat-del', view);
   if (del) del.addEventListener('click', () => deleteChat(chat, isGroup));
+  const muteBtn = $('#chat-mute', view);
+  if (muteBtn) muteBtn.addEventListener('click', async () => {
+    try {
+      const res = await api(`/chats/${chatUid}/mute`, { method: chat.muted ? 'DELETE' : 'POST' });
+      chat.muted = res.muted;
+      muteBtn.textContent = res.muted ? '🔕' : '🔔';
+      toast(res.muted ? 'Чат без звука' : 'Звук включён');
+    } catch (e) { toast(e.message, 'error'); }
+  });
 
   const msgs = [];
   for (const m of data.messages) msgs.push(await decryptMessage(m, chatUid));
@@ -3369,7 +3384,10 @@ async function viewNotifications() {
   view.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
       <div class="page-title" style="margin:0">🔔 Уведомления</div>
-      <button class="btn btn-ghost btn-sm" id="notif-read-all">Прочитать все</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" id="notif-settings">⚙</button>
+        <button class="btn btn-ghost btn-sm" id="notif-read-all">Прочитать все</button>
+      </div>
     </div>
     <div id="notif-list"></div>`;
 
@@ -3381,9 +3399,10 @@ async function viewNotifications() {
     follow: 'подписался(ась) на вас',
     friend_request: 'хочет добавить вас в друзья',
     friend_accepted: 'принял(а) вашу заявку в друзья',
-    message: 'отправил(а) сообщение'
+    message: 'отправил(а) сообщение',
+    react: 'отреагировал(а) на вашу запись'
   };
-  const TYPE_ICO = { like: '❤️', comment: '💬', follow: '➕', friend_request: '🤝', friend_accepted: '🤝', message: '💬' };
+  const TYPE_ICO = { like: '❤️', comment: '💬', follow: '➕', friend_request: '🤝', friend_accepted: '🤝', message: '💬', react: '😊' };
 
   function row(n) {
     const el = document.createElement('a');
@@ -3414,6 +3433,32 @@ async function viewNotifications() {
     return el;
   }
 
+  function groupRow(g) {
+    const first = g.items[0];
+    const count = g.items.length;
+    const el = document.createElement('a');
+    const href = first.url && first.url !== 'feed' ? '#/' + first.url : '#/feed';
+    const allRead = g.items.every((i) => i.read);
+    el.className = 'user-row card' + (allRead ? '' : ' unread');
+    el.style.marginBottom = '6px';
+    el.style.textDecoration = 'none';
+    el.href = href;
+    const names = g.items.slice(0, 2).map((i) => i.actor_name).join(', ');
+    el.innerHTML = `
+      <div class="avatar" style="display:flex;align-items:center;justify-content:center;font-size:20px">${TYPE_ICO[g.type] || '🔔'}</div>
+      <div style="flex:1;min-width:0">
+        <div><span style="font-weight:700">${count} ${count === 1 ? 'человек' : 'человек'}</span>
+          <span class="muted">${esc(TYPE_TEXT[g.type] || g.type)}</span></div>
+        <div class="muted" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(names)}${count > 2 ? ' и ещё ' + (count - 2) : ''}</div>
+        <div class="muted" style="font-size:11px">${timeAgo(first.created_at)}${allRead ? '' : ' · новое'}</div>
+      </div>`;
+    if (!allRead) el.addEventListener('click', async () => {
+      for (const i of g.items) if (!i.read) await api('/notifications/read', { method: 'POST', body: { id: i.id } });
+      setNotifBadges(Math.max(0, (Number($('#notif-badge')?.textContent) || 0) - g.items.filter((i) => !i.read).length));
+    });
+    return el;
+  }
+
   async function load() {
     try {
       const data = await api('/notifications');
@@ -3423,7 +3468,17 @@ async function viewNotifications() {
         list.innerHTML = `<div class="empty">Пока нет уведомлений</div>`;
         return;
       }
-      data.notifications.forEach((n) => list.appendChild(row(n)));
+      const groups = [];
+      data.notifications.forEach((n) => {
+        if (n.type === 'message' || n.type === 'friend_request' || n.type === 'friend_accepted') {
+          groups.push({ single: n });
+        } else {
+          const last = groups[groups.length - 1];
+          if (last && last.type === n.type) last.items.push(n);
+          else groups.push({ type: n.type, items: [n] });
+        }
+      });
+      groups.forEach((g) => list.appendChild(g.single ? row(g.single) : groupRow(g)));
     } catch (err) { list.innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
   }
 
@@ -3432,7 +3487,47 @@ async function viewNotifications() {
     catch (err) { toast(err.message, 'error'); }
   });
 
+  $('#notif-settings', view).addEventListener('click', () => go('/settings/notifications'));
+
   load();
+}
+
+async function viewNotifSettings() {
+  const view = $('#view');
+  view.innerHTML = `
+    <div class="page-title" style="margin:0 0 16px">⚙ Настройки уведомлений</div>
+    <div class="card" id="notif-settings-card" style="padding:8px 4px">
+      <div class="empty">Загрузка…</div>
+    </div>`;
+  const card = $('#notif-settings-card', view);
+  let settings;
+  try { settings = (await api('/notifications/settings')).settings; }
+  catch (e) { card.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+
+  const items = [
+    ['follows', 'Новые подписчики'],
+    ['likes', 'Лайки'],
+    ['comments', 'Комментарии'],
+    ['reactions', 'Реакции'],
+    ['mentions', 'Упоминания'],
+    ['messages', 'Сообщения'],
+    ['friend_requests', 'Заявки в друзья']
+  ];
+  card.innerHTML = items.map(([k, label]) => `
+    <label class="settings-row">
+      <span>${esc(label)}</span>
+      <input type="checkbox" data-key="${k}" ${settings[k] ? 'checked' : ''}>
+    </label>`).join('');
+
+  card.addEventListener('change', async (e) => {
+    const cb = e.target.closest('input[type=checkbox]');
+    if (!cb) return;
+    const key = cb.dataset.key;
+    try {
+      await api('/notifications/settings', { method: 'PUT', body: JSON.stringify({ [key]: cb.checked ? 1 : 0 }), headers: { 'Content-Type': 'application/json' } });
+      toast('Сохранено');
+    } catch (err) { toast(err.message, 'error'); }
+  });
 }
 
 /* ---------- ГРУППЫ ---------- */

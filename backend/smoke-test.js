@@ -589,6 +589,18 @@ async function main() {
   const dmChat = r.data.chats.find((c) => c.kind !== 'group');
   check('в списке чатов есть поле online', dmChat && typeof dmChat.online === 'boolean');
 
+  // Этап 3 — уведомления
+  r = await api('GET', '/api/notifications/settings', { jar: jarA });
+  check('настройки уведомлений доступны', r.res.status === 200 && typeof r.data.settings.likes === 'number');
+  r = await api('PUT', '/api/notifications/settings', { body: { likes: 0 }, jar: jarA });
+  check('тип уведомления можно отключить', r.res.status === 200 && r.data.settings.likes === 0);
+  r = await api('PUT', '/api/notifications/settings', { body: { likes: 1 }, jar: jarA });
+  check('тип уведомления можно включить обратно', r.res.status === 200 && r.data.settings.likes === 1);
+  r = await api('POST', '/api/chats/' + chatUid + '/mute', { jar: jarA });
+  check('mute чата включается', r.res.status === 200 && r.data.muted === true);
+  r = await api('DELETE', '/api/chats/' + chatUid + '/mute', { jar: jarA });
+  check('mute чата выключается', r.res.status === 200 && r.data.muted === false);
+
   server.kill();
   await new Promise((res) => server.once('exit', res));
   for (let i = 0; i < 5; i++) {

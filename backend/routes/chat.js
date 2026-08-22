@@ -84,9 +84,23 @@ router.get('/', auth, (req, res) => {
           is_owner: r.user_a === me
         };
       }
-      return { ...base, other: publicUser(r), online: !!(onlineUsers && onlineUsers.has(r.other_id)) };
+      return { ...base, other: publicUser(r), online: !!(onlineUsers && onlineUsers.has(r.other_id)), muted: !!db.prepare('SELECT 1 FROM muted_chats WHERE user_id = ? AND chat_id = ?').get(me, r.id) };
     })
   });
+});
+
+router.post('/:id/mute', auth, (req, res) => {
+  const chat = chatForUser(req.params.id, req.userId);
+  if (!chat) return res.status(404).json({ error: 'Чат не найден' });
+  db.prepare('INSERT OR IGNORE INTO muted_chats (user_id, chat_id) VALUES (?, ?)').run(req.userId, chat.id);
+  res.json({ ok: true, muted: true });
+});
+
+router.delete('/:id/mute', auth, (req, res) => {
+  const chat = chatForUser(req.params.id, req.userId);
+  if (!chat) return res.status(404).json({ error: 'Чат не найден' });
+  db.prepare('DELETE FROM muted_chats WHERE user_id = ? AND chat_id = ?').run(req.userId, chat.id);
+  res.json({ ok: true, muted: false });
 });
 
 router.post('/', auth, (req, res) => {
@@ -241,7 +255,8 @@ router.post('/:id/messages', auth, (req, res, next) => {
     notify(req.app, id, req.user, 'message', {
       title: isGroup ? title : undefined,
       body: preview,
-      url: `messages/${chat.uid}`
+      url: `messages/${chat.uid}`,
+      chatId: chat.id
     })
   );
   log('message', { req, userId: req.userId, meta: { chatId: chat.id, e2ee, hasMedia: !!media } });
@@ -301,7 +316,7 @@ router.post('/forward', auth, (req, res) => {
       targets.forEach((id) => io.to(`user:${id}`).emit('chat:message', { message, chatId: t.id, chatUid: t.uid }));
     }
     targets.forEach((id) =>
-      notify(req.app, id, req.user, 'message', { body: '📨 Пересланное сообщение', url: `messages/${t.uid}` })
+      notify(req.app, id, req.user, 'message', { body: '📨 Пересланное сообщение', url: `messages/${t.uid}`, chatId: t.id })
     );
     count++;
   }

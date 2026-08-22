@@ -1,7 +1,7 @@
 const express = require('express');
 const { db } = require('../db');
 const { auth } = require('../helpers');
-const { unreadCount, markRead, markAllRead } = require('../notif');
+const { unreadCount, markRead, markAllRead, getSettings } = require('../notif');
 
 const router = express.Router();
 
@@ -16,6 +16,25 @@ router.get('/', auth, (req, res) => {
     )
     .all(req.userId);
   res.json({ notifications: rows, unread: unreadCount(req.userId) });
+});
+
+/* настройки уведомлений */
+router.get('/settings', auth, (req, res) => {
+  res.json({ settings: getSettings(req.userId) });
+});
+
+router.put('/settings', auth, (req, res) => {
+  const allowed = ['follows', 'likes', 'comments', 'mentions', 'messages', 'reactions', 'friend_requests'];
+  const sets = {};
+  allowed.forEach((k) => {
+    if (req.body[k] !== undefined) sets[k] = req.body[k] ? 1 : 0;
+  });
+  if (!Object.keys(sets).length) return res.status(400).json({ error: 'Нет полей' });
+  const cols = Object.keys(sets).map((k) => `${k} = ?`).join(', ');
+  const vals = Object.values(sets);
+  db.prepare(`INSERT OR IGNORE INTO notification_settings (user_id) VALUES (?)`).run(req.userId);
+  db.prepare(`UPDATE notification_settings SET ${cols} WHERE user_id = ?`).run(...vals, req.userId);
+  res.json({ settings: getSettings(req.userId) });
 });
 
 /* отметить одно прочитанным */

@@ -1125,6 +1125,9 @@ textarea { resize: vertical; }
 .online-dot { width: 10px; height: 10px; border-radius: 50%; background: #2ecc71; display: inline-block; box-shadow: 0 0 0 2px var(--card); }
 .chat-dot { position: absolute; right: 0; bottom: 0; }
 .online-dot.off { background: var(--muted); }
+.settings-row { display: flex; align-items: center; justify-content: space-between; padding: 13px 14px; border-bottom: 1px solid var(--border); font-size: 15px; }
+.settings-row:last-child { border-bottom: none; }
+.settings-row input { width: 20px; height: 20px; accent-color: var(--accent); }
 .post-reactions { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 2px; }
 .reaction-chip {
   border: 1px solid var(--border); background: var(--card3);

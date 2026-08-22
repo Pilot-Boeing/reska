@@ -396,6 +396,24 @@ function migrate() {
   addColumn('sessions', 'ua_hash', 'TEXT');
   addColumn('sessions', 'expires_at', 'TEXT');
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS notification_settings (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      follows INTEGER NOT NULL DEFAULT 1,
+      likes INTEGER NOT NULL DEFAULT 1,
+      comments INTEGER NOT NULL DEFAULT 1,
+      mentions INTEGER NOT NULL DEFAULT 1,
+      messages INTEGER NOT NULL DEFAULT 1,
+      reactions INTEGER NOT NULL DEFAULT 1,
+      friend_requests INTEGER NOT NULL DEFAULT 1
+    );
+    CREATE TABLE IF NOT EXISTS muted_chats (
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      chat_id INTEGER NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+      PRIMARY KEY (user_id, chat_id)
+    );
+  `);
+
   for (const t of ['users', 'posts', 'videos', 'comments', 'chats']) ensureUid(t);
 
   rebuildChatsForGroups();
