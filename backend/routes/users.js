@@ -1,6 +1,6 @@
 const express = require('express');
 const { db } = require('../db');
-const { uploadAvatar } = require('../upload');
+const { uploadAvatar, uploadCover } = require('../upload');
 const { auth, publicUser, findByIdOrUid } = require('../helpers');
 const { sanitizeText, validName } = require('../validate');
 const { log } = require('../logger');
@@ -104,6 +104,27 @@ router.post('/:id/avatar', auth, uploadAvatar('avatar'), (req, res) => {
     const abs = path.join(UPLOAD_DIR, String(old).replace(/^\/+/, ''));
     if (abs.startsWith(UPLOAD_DIR) && fs.existsSync(abs)) try { fs.unlinkSync(abs); } catch (e) {}
   }
+  const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+  res.json({ user: publicUser(updated) });
+});
+
+function deleteMediaFile(rel) {
+  if (!rel) return;
+  const fs = require('fs');
+  const path = require('path');
+  const { UPLOAD_DIR } = require('../db');
+  const abs = path.join(UPLOAD_DIR, String(rel).replace(/^\/+/, ''));
+  if (abs.startsWith(UPLOAD_DIR) && fs.existsSync(abs)) try { fs.unlinkSync(abs); } catch (e) {}
+}
+
+router.post('/:id/cover', auth, uploadCover('cover'), (req, res) => {
+  const user = findByIdOrUid('users', req.params.id);
+  if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+  if (user.id !== req.userId) return res.status(403).json({ error: 'Нельзя менять чужую обложку' });
+  if (!req.file) return res.status(400).json({ error: 'Файл не загружен' });
+  const old = user.cover;
+  db.prepare('UPDATE users SET cover = ? WHERE id = ?').run(`covers/${req.file.filename}`, user.id);
+  deleteMediaFile(old);
   const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
   res.json({ user: publicUser(updated) });
 });

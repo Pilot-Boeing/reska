@@ -62,6 +62,7 @@ router.get('/', auth, (req, res) => {
        ORDER BY last_at DESC`
     )
     .all(me, me, me, me, me);
+  const onlineUsers = req.app.get('onlineUsers');
   res.json({
     chats: rows.map((r) => {
       const base = {
@@ -83,7 +84,7 @@ router.get('/', auth, (req, res) => {
           is_owner: r.user_a === me
         };
       }
-      return { ...base, other: publicUser(r) };
+      return { ...base, other: publicUser(r), online: !!(onlineUsers && onlineUsers.has(r.other_id)) };
     })
   });
 });

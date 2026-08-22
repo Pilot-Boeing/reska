@@ -1118,6 +1118,13 @@ textarea { resize: vertical; }
 .repost-head { font-weight: 700; color: var(--primary); font-size: 13px; text-decoration: none; }
 .repost-text { color: var(--text); font-size: 13px; margin-top: 2px; white-space: pre-wrap; word-break: break-word; }
 .repost-media { max-width: 100%; max-height: 280px; border-radius: 8px; margin-top: 6px; display: block; }
+.profile-cover { position: relative; height: 150px; background: linear-gradient(135deg, var(--primary), var(--accent)); background-size: cover; background-position: center; border-radius: 14px 14px 0 0; margin-bottom: -38px; }
+.profile-cover .cover-edit { position: absolute; right: 10px; bottom: 10px; background: rgba(0,0,0,0.45); color: #fff; border-color: rgba(255,255,255,0.4); }
+.profile-head { position: relative; }
+.chat-avatar-wrap { position: relative; display: inline-block; }
+.online-dot { width: 10px; height: 10px; border-radius: 50%; background: #2ecc71; display: inline-block; box-shadow: 0 0 0 2px var(--card); }
+.chat-dot { position: absolute; right: 0; bottom: 0; }
+.online-dot.off { background: var(--muted); }
 .post-reactions { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 2px; }
 .reaction-chip {
   border: 1px solid var(--border); background: var(--card3);

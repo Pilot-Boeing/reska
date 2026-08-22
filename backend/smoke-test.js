@@ -584,6 +584,11 @@ async function main() {
   const repostInFeed = r.data.posts.find((p) => p.repost && p.repost.id === origPostId);
   check('репост отображается в ленте с данными оригинала', !!repostInFeed);
 
+  // Онлайн-статус (Этап 2)
+  r = await api('GET', '/api/chats', { jar: jarA });
+  const dmChat = r.data.chats.find((c) => c.kind !== 'group');
+  check('в списке чатов есть поле online', dmChat && typeof dmChat.online === 'boolean');
+
   server.kill();
   await new Promise((res) => server.once('exit', res));
   for (let i = 0; i < 5; i++) {

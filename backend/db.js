@@ -44,6 +44,7 @@ if (!safeMkdir([path.dirname(DB_PATH)])) {
 }
 
 const AVATAR_DIR = path.join(UPLOAD_DIR, 'avatars');
+const COVER_DIR = path.join(UPLOAD_DIR, 'covers');
 const POST_DIR = path.join(UPLOAD_DIR, 'posts');
 const VIDEO_DIR = path.join(UPLOAD_DIR, 'videos');
 const THUMB_DIR = path.join(UPLOAD_DIR, 'thumbs');
@@ -373,6 +374,7 @@ function migrate() {
   addColumn('users', 'e2ee_ver', 'INTEGER NOT NULL DEFAULT 0');
   addColumn('users', 'phone', 'TEXT DEFAULT \'\'');
   addColumn('users', 'phone_hash', 'TEXT DEFAULT \'\'');
+  addColumn('users', 'cover', 'TEXT DEFAULT \'\'');
   addColumn('posts', 'uid', 'TEXT');
   addColumn('posts', 'repost_of', 'INTEGER');
   addColumn('videos', 'uid', 'TEXT');
@@ -428,6 +430,7 @@ module.exports = {
   DB_PATH,
   UPLOAD_DIR,
   AVATAR_DIR,
+  COVER_DIR,
   POST_DIR,
   VIDEO_DIR,
   THUMB_DIR,

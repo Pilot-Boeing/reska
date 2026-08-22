@@ -2,7 +2,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const { AVATAR_DIR, POST_DIR, VIDEO_DIR, CHAT_DIR } = require('./db');
+const { AVATAR_DIR, COVER_DIR, POST_DIR, VIDEO_DIR, CHAT_DIR } = require('./db');
 const { encryptFileStream } = require('./encryption');
 
 const IMAGE_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml'];
@@ -60,6 +60,7 @@ function makeUpload(dir, mimes, maxMb) {
 }
 
 const uploadAvatar = makeUpload(AVATAR_DIR, IMAGE_MIME, 8);
+const uploadCover = makeUpload(COVER_DIR, IMAGE_MIME, 8);
 const uploadPostMedia = makeUpload(POST_DIR, [...IMAGE_MIME, ...VIDEO_MIME], 200);
 const uploadVideo = makeUpload(VIDEO_DIR, VIDEO_MIME, 500);
 
@@ -108,4 +109,4 @@ function uploadChatMedia(field) {
   };
 }
 
-module.exports = { uploadAvatar, uploadPostMedia, uploadVideo, uploadChatMedia, AUDIO_MIME, VIDEO_MIME, IMAGE_MIME };
+module.exports = { uploadAvatar, uploadCover, uploadPostMedia, uploadVideo, uploadChatMedia, AUDIO_MIME, VIDEO_MIME, IMAGE_MIME };

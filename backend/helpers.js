@@ -227,6 +227,7 @@ function publicUser(u) {
     bio: u.bio,
     status: u.status,
     avatar: u.avatar,
+    cover: u.cover,
     role: u.role,
     e2ee_pub: u.e2ee_pub,
     e2ee_ver: u.e2ee_ver,

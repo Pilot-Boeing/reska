@@ -1624,9 +1624,10 @@ function renderChatList() {
     const last = isGroup
       ? (c.last_text || 'Группа создана')
       : (isSelf && !c.last_text ? 'Заметки, избранное, черновики' : (c.last_text || 'Нет сообщений'));
+    const onlineDot = !isGroup && !isSelf && c.online ? '<span class="online-dot chat-dot"></span>' : '';
     const avatar = isGroup
       ? `<span class="avatar sm group-avatar">👥</span>`
-      : `<img class="avatar sm" src="${mediaUrl(c.other.avatar)}" alt="">`;
+      : `<div class="chat-avatar-wrap"><img class="avatar sm" src="${mediaUrl(c.other.avatar)}" alt="">${onlineDot}</div>`;
     const el = document.createElement('div');
     el.className = 'chat-item' + (c.uid === activeChatUid ? ' active' : '') + (isSelf ? ' self' : '');
     el.dataset.chatUid = c.uid;
@@ -2609,6 +2610,10 @@ async function viewProfile(id) {
   const phoneHref = u.phone ? 'tel:' + u.phone.replace(/[^\+0-9]/g, '') : '';
   view.innerHTML = `
     <div class="profile">
+      <div class="profile-cover" ${u.cover ? `style="background-image:url('${esc(mediaUrl(u.cover))}')"` : ''}>
+        ${isMe ? `<button class="btn btn-ghost cover-edit" data-action="set-cover">🖼 Обложка</button>
+                  <input type="file" accept="image/*" id="cover-input" hidden>` : ''}
+      </div>
       <div class="profile-head card">
         <span class="avatar-ring ${u.online ? '' : 'offline'}"><img class="avatar xl" src="${mediaUrl(u.avatar)}" alt=""></span>
         <div class="profile-info">
@@ -2645,6 +2650,24 @@ async function viewProfile(id) {
       <div id="profile-posts"></div>
       <div class="video-grid hidden" id="profile-videos"></div>
     </div>`;
+
+  const coverBtn = view.querySelector('[data-action="set-cover"]');
+  if (coverBtn) {
+    coverBtn.addEventListener('click', () => $('#cover-input', view).click());
+    $('#cover-input', view).addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('cover', file);
+      try {
+        const res = await api(`/users/${u.uid}/cover`, { method: 'POST', body: fd });
+        me.cover = res.user.cover;
+        const coverEl = view.querySelector('.profile-cover');
+        coverEl.style.backgroundImage = `url('${mediaUrl(res.user.cover)}')`;
+        toast('Обложка обновлена');
+      } catch (err) { toast(err.message, 'error'); }
+    });
+  }
 
   view.querySelector('.profile-tabs-nav').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-ptab]');
