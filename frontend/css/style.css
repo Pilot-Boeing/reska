@@ -1128,3 +1128,37 @@ textarea { resize: vertical; }
   background: var(--ok); margin-right: 4px; vertical-align: 1px;
   box-shadow: 0 0 8px var(--ok);
 }
+
+/* =========================================================
+   СКЕЛЕТОНЫ + АНИМАЦИИ ПОЯВЛЕНИЯ
+   ========================================================= */
+.skeleton-card { pointer-events: none; }
+.skeleton-card .sk-line,
+.skeleton-card .sk-block {
+  background: linear-gradient(100deg, var(--card2) 30%, var(--card3) 50%, var(--card2) 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.3s infinite linear;
+  border-radius: 8px;
+}
+.skeleton-card .sk-line { height: 12px; margin: 8px 0; }
+.skeleton-card .sk-line.short { width: 50%; }
+.skeleton-card .sk-block { height: 160px; margin-top: 12px; }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+.feed-sentinel { text-align: center; padding: 16px; font-size: 13px; }
+
+/* плавное появление экранов при смене маршрута */
+.feed, .video-grid, .chat-list-screen, .page-head, .clips-feed,
+.profile-wrap, .friends-wrap, .search-wrap, .notif-wrap, .notes-wrap {
+  animation: fadeIn 0.25s ease;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* появление карточек постов/видео */
+.post, .video-card, .clip-card, .friend-card, .notif-item {
+  animation: cardEnter 0.35s ease;
+}
+@keyframes cardEnter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}

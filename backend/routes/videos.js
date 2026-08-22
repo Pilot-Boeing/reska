@@ -54,15 +54,19 @@ setInterval(() => {
 router.get('/', (req, res) => {
   const userId = req.userId || null;
   const clip = req.query.clip === '1' ? 1 : req.query.clip === '0' ? 0 : null;
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
+  const before = req.query.before ? Number(req.query.before) : 0;
   let sql = VIDEO_QUERY;
   const params = [];
-  if (clip !== null) {
-    sql += ' WHERE v.is_clip = ?';
-    params.push(clip);
-  }
-  sql += ' ORDER BY v.created_at DESC, v.id DESC';
+  const conds = [];
+  if (clip !== null) { conds.push('v.is_clip = ?'); params.push(clip); }
+  if (before) { conds.push('v.id < ?'); params.push(before); }
+  if (conds.length) sql += ' WHERE ' + conds.join(' AND ');
+  sql += ' ORDER BY v.created_at DESC, v.id DESC LIMIT ' + (limit + 1);
   const rows = db.prepare(sql).all(...params);
-  res.json({ videos: rows.map((r) => videoWithMeta(r, userId)) });
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  res.json({ videos: page.map((r) => videoWithMeta(r, userId)), hasMore });
 });
 
 router.get('/:id', (req, res) => {

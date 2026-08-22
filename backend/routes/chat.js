@@ -158,11 +158,16 @@ router.post('/:id/typing', auth, (req, res) => {
 router.get('/:id/messages', auth, (req, res) => {
   const chat = chatForUser(req.params.id, req.userId);
   if (!chat) return res.status(403).json({ error: 'Нет доступа к чату' });
-  const messages = db
-    .prepare(`${MESSAGE_QUERY} WHERE m.chat_id = ? ORDER BY m.id ASC`)
-    .all(chat.id)
-    .map((row) => messageWithMeta(row, req.userId));
-  res.json({ messages, chatUid: chat.uid });
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 100);
+  const before = req.query.before ? Number(req.query.before) : 0;
+  const params = [chat.id];
+  let sql = `${MESSAGE_QUERY} WHERE m.chat_id = ?`;
+  if (before) { sql += ' AND m.id < ?'; params.push(before); }
+  sql += ' ORDER BY m.id DESC LIMIT ' + (limit + 1);
+  const rows = db.prepare(sql).all(...params);
+  const hasMore = rows.length > limit;
+  const page = (hasMore ? rows.slice(0, limit) : rows).reverse();
+  res.json({ messages: page.map((row) => messageWithMeta(row, req.userId)), hasMore, chatUid: chat.uid });
 });
 
 router.post('/:id/messages', auth, (req, res, next) => {

@@ -37,8 +37,15 @@ function deleteMedia(relPath) {
 
 router.get('/', (req, res) => {
   const userId = req.userId || null;
-  const rows = db.prepare(`${POST_QUERY} ORDER BY p.created_at DESC, p.id DESC`).all();
-  res.json({ posts: rows.map((r) => postWithMeta(r, userId)) });
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
+  const before = req.query.before ? Number(req.query.before) : 0;
+  const where = before ? `WHERE p.id < ${before}` : '';
+  const rows = db
+    .prepare(`${POST_QUERY} ${where} ORDER BY p.created_at DESC, p.id DESC LIMIT ${limit + 1}`)
+    .all();
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  res.json({ posts: page.map((r) => postWithMeta(r, userId)), hasMore });
 });
 
 router.post('/', auth, uploadPostMedia('media'), (req, res) => {

@@ -145,6 +145,7 @@ let socket = null;
 let activeChatUid = null;
 let activeChat = null;
 let chatsCache = [];
+let chatMsgState = null;
 let currentSearch = '';
 
 /* ---------- экран загрузки ---------- */
@@ -442,8 +443,7 @@ async function afterLogin() {
   E2EE.pushPubKey(me.uid);
   initPush();
   connectSocket();
-  await loadAliases();
-  loadNotifBadge();
+  await Promise.all([loadAliases(), loadNotifBadge()]);
   render();
 }
 
@@ -751,14 +751,68 @@ function buildPost(post) {
   return node;
 }
 
-async function viewFeed() {
-  const data = await api('/posts');
+const FEED_PAGE = 10;
+let feedState = { before: 0, hasMore: true, loading: false, observer: null };
+
+async function viewFeed(reset = true) {
   const view = $('#view');
-  view.innerHTML = `<div class="feed" id="post-feed"></div>`;
+  if (reset) {
+    feedState = { before: 0, hasMore: true, loading: false, observer: null };
+    view.innerHTML = `<div class="feed" id="post-feed"></div>`;
+  }
   const feed = $('#post-feed');
-  if (!data.posts.length) feed.innerHTML = `<div class="empty">Пока нет постов. Напишите первый!</div>`;
+  if (!feed) return;
+  if (reset) {
+    feed.innerHTML = skeletonCards(3);
+    let data;
+    try {
+      data = await api(`/posts?limit=${FEED_PAGE}&before=0`);
+    } catch (e) { feed.innerHTML = `<div class="empty">Ошибка загрузки</div>`; return; }
+    feed.innerHTML = '';
+    if (!data.posts.length) { feed.innerHTML = `<div class="empty">Пока нет постов. Напишите первый!</div>`; return; }
+    data.posts.forEach((p) => feed.appendChild(buildPost(p)));
+    feedState.hasMore = data.hasMore;
+    feedState.before = data.posts[data.posts.length - 1].id;
+    wirePostEvents(feed);
+    setupFeedObserver(feed);
+    return;
+  }
+  if (!feedState.hasMore || feedState.loading) return;
+  feedState.loading = true;
+  const sentinel = $('.feed-sentinel', feed);
+  if (sentinel) sentinel.textContent = 'Загрузка…';
+  let data;
+  try {
+    data = await api(`/posts?limit=${FEED_PAGE}&before=${feedState.before}`);
+  } catch (e) { feedState.loading = false; if (sentinel) sentinel.textContent = 'Ошибка'; return; }
+  if (sentinel) sentinel.remove();
   data.posts.forEach((p) => feed.appendChild(buildPost(p)));
-  wirePostEvents(feed);
+  feedState.hasMore = data.hasMore;
+  if (data.posts.length) feedState.before = data.posts[data.posts.length - 1].id;
+  feedState.loading = false;
+  if (feedState.hasMore) appendSentinel(feed);
+}
+
+function appendSentinel(feed) {
+  if ($('.feed-sentinel', feed)) return;
+  const s = document.createElement('div');
+  s.className = 'feed-sentinel muted';
+  s.textContent = 'Загрузка…';
+  feed.appendChild(s);
+}
+
+function setupFeedObserver(feed) {
+  if (feedState.observer) feedState.observer.disconnect();
+  feedState.observer = new IntersectionObserver((entries) => {
+    if (entries.some((e) => e.isIntersecting)) viewFeed(false);
+  }, { root: null, rootMargin: '700px' });
+  feedState.observer.observe(feed);
+}
+
+function skeletonCards(n) {
+  let h = '';
+  for (let i = 0; i < n; i++) h += `<div class="card skeleton-card"><div class="sk-line"></div><div class="sk-line short"></div><div class="sk-block"></div></div>`;
+  return h;
 }
 
 function wirePostEvents(feed) {
@@ -913,19 +967,118 @@ function buildVideoCard(v) {
   return node;
 }
 
+const VIDEO_PAGE = 12;
+let videoState = { before: 0, hasMore: true, loading: false, observer: null };
+let clipState = { before: 0, hasMore: true, loading: false, observer: null };
+let videosIsClips = false;
+
 async function viewVideos(isClips) {
-  const data = await api('/videos?clip=' + (isClips ? '1' : '0'));
-  if (isClips) return viewClipsReel(data.videos);
+  videosIsClips = isClips;
   const view = $('#view');
+  if (isClips) {
+    clipState = { before: 0, hasMore: true, loading: false, observer: null };
+    view.innerHTML = '';
+    const feed = document.createElement('div');
+    feed.className = 'clips-feed';
+    feed.id = 'clips-feed';
+    view.appendChild(feed);
+    const nav = document.createElement('div');
+    nav.className = 'clips-nav';
+    nav.innerHTML = `<button data-dir="up" title="Назад">^</button><button data-dir="down" title="Вперёд">▼</button>`;
+    view.appendChild(nav);
+    const addBtn = document.createElement('a');
+    addBtn.className = 'fab fab-clips';
+    addBtn.href = '#/clips-new';
+    addBtn.title = 'Добавить клип';
+    addBtn.innerHTML = '＋';
+    view.appendChild(addBtn);
+    await loadClips(true);
+    return;
+  }
+  videoState = { before: 0, hasMore: true, loading: false, observer: null };
   view.innerHTML = `
     <div class="page-head">
       <h1 class="page-title" style="margin:0">🎬 Видео</h1>
       <a class="btn btn-primary" href="#/videos-new">＋ Загрузить видео</a>
     </div>
     <div class="video-grid" id="video-grid"></div>`;
+  await loadVideos(true);
+}
+
+async function loadVideos(reset) {
   const g = $('#video-grid');
-  if (!data.videos.length) g.innerHTML = `<div class="empty">Нет видео. Загрузите первым!</div>`;
+  if (!g) return;
+  if (reset) {
+    g.innerHTML = skeletonCards(6);
+    let data;
+    try { data = await api(`/videos?clip=0&limit=${VIDEO_PAGE}&before=0`); }
+    catch (e) { g.innerHTML = `<div class="empty">Ошибка загрузки</div>`; return; }
+    g.innerHTML = '';
+    if (!data.videos.length) { g.innerHTML = `<div class="empty">Нет видео. Загрузите первым!</div>`; return; }
+    data.videos.forEach((v) => g.appendChild(buildVideoCard(v)));
+    videoState.hasMore = data.hasMore;
+    videoState.before = data.videos[data.videos.length - 1].id;
+    setupVideoObserver();
+    return;
+  }
+  if (!videoState.hasMore || videoState.loading) return;
+  videoState.loading = true;
+  let data;
+  try { data = await api(`/videos?clip=0&limit=${VIDEO_PAGE}&before=${videoState.before}`); }
+  catch (e) { videoState.loading = false; return; }
   data.videos.forEach((v) => g.appendChild(buildVideoCard(v)));
+  videoState.hasMore = data.hasMore;
+  if (data.videos.length) videoState.before = data.videos[data.videos.length - 1].id;
+  videoState.loading = false;
+}
+
+function setupVideoObserver() {
+  if (videoState.observer) videoState.observer.disconnect();
+  videoState.observer = new IntersectionObserver((entries) => {
+    if (entries.some((e) => e.isIntersecting)) loadVideos(false);
+  }, { rootMargin: '600px' });
+  const g = $('#video-grid');
+  if (g) videoState.observer.observe(g.lastElementChild || g);
+}
+
+async function loadClips(reset) {
+  const feed = $('#clips-feed');
+  if (!feed) return;
+  if (reset) {
+    feed.innerHTML = '';
+    const s = document.createElement('div');
+    s.className = 'clips-empty muted';
+    s.textContent = 'Загрузка…';
+    feed.appendChild(s);
+    let data;
+    try { data = await api(`/videos?clip=1&limit=${VIDEO_PAGE}&before=0`); }
+    catch (e) { feed.innerHTML = `<div class="empty">Ошибка загрузки</div>`; return; }
+    feed.innerHTML = '';
+    if (!data.videos.length) { feed.innerHTML = `<div class="clips-empty empty">Нет клипов. Добавьте видео как клип!<div style="margin-top:14px"><a class="btn btn-primary" href="#/clips-new">＋ Добавить клип</a></div></div>`; return; }
+    data.videos.forEach((v) => feed.appendChild(buildClipCard(v)));
+    clipState.hasMore = data.hasMore;
+    clipState.before = data.videos[data.videos.length - 1].id;
+    setupClipObserver();
+    return;
+  }
+  if (!clipState.hasMore || clipState.loading) return;
+  clipState.loading = true;
+  let data;
+  try { data = await api(`/videos?clip=1&limit=${VIDEO_PAGE}&before=${clipState.before}`); }
+  catch (e) { clipState.loading = false; return; }
+  data.videos.forEach((v) => feed.appendChild(buildClipCard(v)));
+  clipState.hasMore = data.hasMore;
+  if (data.videos.length) clipState.before = data.videos[data.videos.length - 1].id;
+  clipState.loading = false;
+}
+
+function setupClipObserver() {
+  if (clipState.observer) clipState.observer.disconnect();
+  clipState.observer = new IntersectionObserver((entries) => {
+    if (entries.some((e) => e.isIntersecting)) loadClips(false);
+  }, { rootMargin: '800px' });
+  const feed = $('#clips-feed');
+  if (feed) clipState.observer.observe(feed.lastElementChild || feed);
 }
 
 async function viewClipsReel(videos) {
@@ -1488,6 +1641,21 @@ async function openChat(chatUid) {
   msgs.forEach((m) => appendMessage(m));
   scrollChat();
 
+  chatMsgState = {
+    chatUid,
+    before: msgs.length ? msgs[0].id : 0,
+    hasMore: !!data.hasMore,
+    loading: false
+  };
+  const box = $('#chat-messages', view);
+  if (box) {
+    box.addEventListener('scroll', () => {
+      if (box.scrollTop < 60 && chatMsgState && chatMsgState.hasMore && !chatMsgState.loading) {
+        loadChatHistory();
+      }
+    });
+  }
+
   typingTimer = null;
   const chatInput = $('input#chat-text', view);
   chatInput.addEventListener('input', () => {
@@ -1810,7 +1978,7 @@ function captionNode(m) {
   return cap;
 }
 
-function appendMessage(m) {
+function appendMessage(m, atTop) {
   const container = $('#chat-messages');
   if (!container) return;
   const node = $('#tpl-message').content.cloneNode(true);
@@ -1897,7 +2065,29 @@ function appendMessage(m) {
       if (!wasOpen) div.classList.add('actions-open');
     });
   }
-  container.appendChild(node);
+  if (atTop && container.firstChild) container.insertBefore(node, container.firstChild);
+  else container.appendChild(node);
+}
+
+async function loadChatHistory() {
+  if (!chatMsgState || !chatMsgState.hasMore || chatMsgState.loading) return;
+  chatMsgState.loading = true;
+  let data;
+  try {
+    data = await api(`/chats/${chatMsgState.chatUid}/messages?before=${chatMsgState.before}&limit=50`);
+  } catch (e) { chatMsgState.loading = false; return; }
+  if (!data.messages.length) { chatMsgState.hasMore = false; chatMsgState.loading = false; return; }
+  const box = $('#chat-messages');
+  const prevHeight = box ? box.scrollHeight : 0;
+  const prevTop = box ? box.scrollTop : 0;
+  for (const m of data.messages) {
+    const dm = await decryptMessage(m, chatMsgState.chatUid);
+    appendMessage(dm, true);
+  }
+  if (box) box.scrollTop = prevTop + (box.scrollHeight - prevHeight);
+  chatMsgState.hasMore = !!data.hasMore;
+  chatMsgState.before = data.messages[0].id;
+  chatMsgState.loading = false;
 }
 
 function removeMessageEl(id) {

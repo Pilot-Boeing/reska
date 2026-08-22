@@ -151,7 +151,31 @@ app.get('/api/media/*', (req, res) => {
   res.end(buffer);
 });
 
-app.use(express.static(FRONTEND_DIR));
+const BUILD_VER = (() => {
+  try {
+    const { execSync } = require('child_process');
+    const h = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    if (h) return h;
+  } catch (e) {}
+  try { return require('./package.json').version; } catch (e) { return String(Date.now()); }
+})();
+
+/* главная страница: подставляем версию сборки в ссылки статики (кеш-бастинг) */
+app.get('/', (req, res) => {
+  try {
+    const html = fs.readFileSync(path.join(FRONTEND_DIR, 'index.html'), 'utf8').replace(/__BUILD__/g, BUILD_VER);
+    res.set('Cache-Control', 'no-cache');
+    res.send(html);
+  } catch (e) {
+    res.status(500).send('index.html not found');
+  }
+});
+
+app.use(express.static(FRONTEND_DIR, {
+  setHeaders: (res, filePath) => {
+    if (/\.(js|css)$/.test(filePath)) res.set('Cache-Control', 'public, max-age=31536000, immutable');
+  }
+}));
 
 /* ---------- API ---------- */
 app.use('/api', (req, res, next) => {
