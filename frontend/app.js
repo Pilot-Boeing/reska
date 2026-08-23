@@ -771,7 +771,7 @@ function buildPost(post) {
   }
 
   const likeBtn = $('[data-action="like"]', node);
-  likeBtn.classList.toggle('liked', !!post.liked);
+  likeBtn.classList.toggle('is-liked', !!post.liked);
   likeBtn.querySelector('.like-count').textContent = post.likes || '';
   $('[data-action="toggle-comments"] .comment-count', node).textContent = post.comments || '';
   $('.comment-self-avatar', node).src = mediaUrl(me.avatar);
@@ -913,9 +913,7 @@ function openStoryViewer(groups, gi) {
       <b>${esc(group.user.name || group.user.username)}</b>
       <button class="story-close">✕</button>
     </div>
-    <div class="story-media"></div>
-    <button class="story-nav prev">‹</button>
-    <button class="story-nav next">›</button>`;
+    <div class="story-media"></div>`;
   $('#modal-root').appendChild(overlay);
 
   function render() {
@@ -941,8 +939,6 @@ function openStoryViewer(groups, gi) {
   }
   function close() { if (storyTimer) clearTimeout(storyTimer); overlay.remove(); loadStoriesBar(); }
   $('.story-close', overlay).addEventListener('click', close);
-  $('.story-nav.next', overlay).addEventListener('click', next);
-  $('.story-nav.prev', overlay).addEventListener('click', prev);
   render();
 }
 
@@ -961,10 +957,10 @@ function wirePostEvents(feed) {
       if (now - postLastTap < 320) {
         postLastTap = 0;
         const likeBtn = $('[data-action="like"]', postNode);
-        if (likeBtn && !likeBtn.classList.contains('liked')) {
+        if (likeBtn && !likeBtn.classList.contains('is-liked')) {
           try {
-            const res = await api(`/posts/${postNode.dataset.uid || postNode.dataset.id}/like`, { method: 'POST' });
-            likeBtn.classList.add('liked');
+            const res = await api(`/posts/${postNode.dataset.id || postNode.dataset.uid}/like`, { method: 'POST' });
+            likeBtn.classList.add('is-liked');
             likeBtn.querySelector('.like-count').textContent = res.likes || '';
             const heart = document.createElement('div');
             heart.className = 'post-heart';
@@ -980,15 +976,15 @@ function wirePostEvents(feed) {
     const actionBtn = e.target.closest('[data-action]');
     if (!actionBtn) return;
     const root = actionBtn.closest('.post');
-    const id = root.dataset.uid || root.dataset.id;
+    const id = root.dataset.id || root.dataset.uid;
     const action = actionBtn.dataset.action;
 
       if (action === 'like') {
         try {
-          const res = actionBtn.classList.contains('liked')
+          const res = actionBtn.classList.contains('is-liked')
             ? await api(`/posts/${id}/like`, { method: 'DELETE' })
             : await api(`/posts/${id}/like`, { method: 'POST' });
-          actionBtn.classList.toggle('liked', res.liked);
+          actionBtn.classList.toggle('is-liked', res.liked);
           actionBtn.querySelector('.like-count').textContent = res.likes || '';
         } catch (err) { toast(err.message, 'error'); }
       }
@@ -4092,8 +4088,18 @@ function setupTheme() {
   });
 }
 
+/* ---------- автоопределение устройства (ПК / телефон) ---------- */
+function detectDevice() {
+  const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  const device = (window.innerWidth >= 900 && !coarse) ? 'desktop' : 'mobile';
+  document.documentElement.setAttribute('data-device', device);
+}
+window.addEventListener('resize', detectDevice);
+window.addEventListener('orientationchange', detectDevice);
+
 document.addEventListener('DOMContentLoaded', () => {
   setupTheme();
+  detectDevice();
   const bb = document.getElementById('btn-back');
   if (bb) bb.addEventListener('click', () => go(backRoute || '/feed'));
   paintIcons(document);

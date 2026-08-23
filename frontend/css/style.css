@@ -1015,12 +1015,11 @@ textarea { resize: vertical; }
   width: 54px; height: 54px; border-radius: 50%;
   background: linear-gradient(135deg, var(--accent), #e0701a);
   color: #fff; font-size: 28px; line-height: 1;
-  display: none; align-items: center; justify-content: center;
+  display: flex; align-items: center; justify-content: center;
   box-shadow: 0 8px 24px rgba(246, 129, 33, 0.45);
   z-index: 120; text-decoration: none !important;
   transition: transform 0.15s, box-shadow 0.2s;
 }
-@media (max-width: 860px) { .fab { display: flex; } }
 .fab:hover { transform: translateY(-2px) scale(1.04); box-shadow: 0 10px 30px rgba(246, 129, 33, 0.6); }
 .fab:active { transform: scale(0.96); }
 
@@ -1030,7 +1029,6 @@ textarea { resize: vertical; }
   position: fixed; right: 20px; bottom: 154px; z-index: 121;
   display: flex; flex-direction: column; gap: 10px; align-items: flex-end;
 }
-@media (min-width: 861px) { .fab-menu { display: none !important; } }
 .fab-menu a {
   background: var(--card2); border: 1px solid var(--border-strong);
   color: var(--text); padding: 10px 16px; border-radius: 22px;

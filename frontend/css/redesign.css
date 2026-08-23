@@ -44,6 +44,8 @@
 
 /* глобальный фон с сеткой дежурной части */
 body {
+  background-color: var(--bg);
+  color: var(--text);
   background-image:
     radial-gradient(1100px 560px at 88% -8%, rgba(255, 106, 0, 0.12), transparent 60%),
     radial-gradient(1000px 520px at -10% 110%, rgba(47, 123, 217, 0.14), transparent 60%);
@@ -461,13 +463,15 @@ body {
   --shadow-sm: 0 6px 18px rgba(20, 40, 80, 0.10);
 }
 [data-theme="light"] body {
+  background-color: var(--bg);
   background-image:
     radial-gradient(1100px 560px at 88% -8%, rgba(255, 106, 0, 0.10), transparent 60%),
     radial-gradient(1000px 520px at -10% 110%, rgba(47, 123, 217, 0.12), transparent 60%);
   color: var(--text);
 }
 [data-theme="light"] .glass,
-[data-theme="light"] .modal.card {
+[data-theme="light"] .modal.card,
+[data-theme="light"] .modal {
   background: linear-gradient(180deg, rgba(255, 255, 255, .97), rgba(245, 248, 252, .98));
   color: var(--text);
 }
@@ -583,4 +587,31 @@ body {
 .app-badge { width: 46px; height: 46px; border-radius: 12px; background: var(--mchs-soft); display: flex; align-items: center; justify-content: center; flex: none; }
 .app-badge .ico { width: 26px; height: 26px; color: var(--mchs); }
 .about-row { display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--border-soft); font-size: 13.5px; color: var(--muted); }
+
+/* =========================================================
+   АВТООПРЕДЕЛЕНИЕ УСТРОЙСТВА (ПК / ТЕЛЕФОН)
+   ========================================================= */
+/* Десктоп: виден сайдбар, мобильная навигация скрыта */
+html[data-device="desktop"] .mobilenav { display: none !important; }
+html[data-device="desktop"] .menu-toggle { display: none !important; }
+html[data-device="desktop"] .sidebar { position: sticky; top: 0; height: 100vh; transform: none !important; width: var(--sidebar-w); }
+html[data-device="desktop"] .main { margin-left: var(--sidebar-w); }
+html[data-device="desktop"] .view { max-width: 1040px; padding: 26px 24px; }
+
+/* Телефон: мобильная навигация видна, сайдбар скрыт (открывается бургером) */
+html[data-device="mobile"] .mobilenav { display: flex !important; }
+html[data-device="mobile"] .menu-toggle { display: block !important; }
+html[data-device="mobile"] .sidebar { position: fixed; top: 0; bottom: 0; left: 0; width: var(--sidebar-w); transform: translateX(-100%); transition: transform .25s ease; z-index: 120; }
+html[data-device="mobile"] .sidebar.open { transform: translateX(0); }
+html[data-device="mobile"] .main { margin-left: 0; }
+html[data-device="mobile"] .view { padding: 14px 12px 92px; }
+
+/* Удобство на телефоне: крупные тач-цели и комфортные отступы */
+html[data-device="mobile"] .post-actions .pact,
+html[data-device="mobile"] .feed-actions .pact { padding: 11px 12px; font-size: 14px; }
+html[data-device="mobile"] .pact { min-height: 40px; }
+html[data-device="mobile"] .btn { min-height: 42px; }
+html[data-device="mobile"] .fab { bottom: 96px; }
+html[data-device="mobile"] .user-row { padding: 14px; }
+html[data-device="mobile"] .chat-item { padding: 14px; }
 
