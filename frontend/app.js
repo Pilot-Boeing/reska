@@ -330,6 +330,8 @@ async function initPush() {
 
 
 /* ---------- роутер ---------- */
+let lastRoute = '/feed';
+let backRoute = '/feed';
 function parseHash() {
   const h = location.hash.replace(/^#\/?/, '');
   const [pathPart, qs] = h.split('?');
@@ -352,6 +354,14 @@ async function render() {
   if (!me) return;
   const { segs, query } = parseHash();
   const route = segs[0] || 'feed';
+  const full = '/' + (segs.join('/') || 'feed');
+  if (full !== lastRoute) backRoute = lastRoute;
+  lastRoute = full;
+  const backBtn = document.getElementById('btn-back');
+  if (backBtn) {
+    const isRoot = segs.length === 1 && ['feed', 'videos', 'clips', 'notifications'].includes(route);
+    backBtn.classList.toggle('hidden', isRoot);
+  }
   setActiveNav(route);
   updateFab(route);
 
@@ -4084,6 +4094,8 @@ function setupTheme() {
 
 document.addEventListener('DOMContentLoaded', () => {
   setupTheme();
+  const bb = document.getElementById('btn-back');
+  if (bb) bb.addEventListener('click', () => go(backRoute || '/feed'));
   paintIcons(document);
   setupIconObserver();
   wireGlobal();

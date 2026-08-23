@@ -508,6 +508,12 @@ body {
 .theme-toggle:hover { border-color: var(--mchs); color: var(--mchs); box-shadow: 0 0 16px rgba(255, 106, 0, .25); }
 .theme-toggle .ico { width: 21px; height: 21px; }
 
+/* кнопка «Назад» */
+.topbar-back { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 50%; background: var(--card); border: 1px solid var(--border-soft); color: var(--text); cursor: pointer; flex: none; transition: .15s; }
+.topbar-back:hover { border-color: var(--mchs); color: var(--mchs); }
+.topbar-back .ico { width: 22px; height: 22px; }
+.topbar-back.hidden { display: none; }
+
 /* =========================================================
    ЭКРАНЫ: СПИСКИ ПОЛЬЗОВАТЕЛЕЙ / ПОИСК / БИБЛИОТЕКА
    ========================================================= */

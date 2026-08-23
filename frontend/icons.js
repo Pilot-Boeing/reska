@@ -44,6 +44,7 @@
     moon: '<path d="M21 12.8A8 8 0 1111.2 3 6.5 6.5 0 0021 12.8z"/>',
     info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
     chevron: '<path d="M9 6l6 6-6 6"/>',
+    back: '<path d="M15 18l-6-6 6-6"/>',
     logout: '<path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>',
     edit: '<path d="M4 20h4L18.5 9.5l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/>',
     trash: '<path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/>'
