@@ -262,6 +262,20 @@ function commentsFor(column, id) {
   return roots;
 }
 
+function extractMentions(text) {
+  if (!text) return [];
+  const names = [...text.matchAll(/@([a-zA-Z0-9_]+)/g)].map((m) => m[1].toLowerCase());
+  const out = [];
+  const seen = new Set();
+  for (const n of names) {
+    if (seen.has(n)) continue;
+    seen.add(n);
+    const u = db.prepare('SELECT id, uid FROM users WHERE username = ?').get(n);
+    if (u) out.push(u);
+  }
+  return out;
+}
+
 module.exports = {
   parseCookies,
   createSession,
@@ -278,5 +292,6 @@ module.exports = {
   findByIdOrUid,
   publicUser,
   now,
-  commentsFor
+  commentsFor,
+  extractMentions
 };

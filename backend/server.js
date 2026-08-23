@@ -238,7 +238,7 @@ io.on('connection', (socket) => {
   });
 });
 
-require('./call').setupCalls(io);
+require('./call').setupCalls(io, app);
 
 /* ---------- HTTP + HTTPS ---------- */
 async function start() {

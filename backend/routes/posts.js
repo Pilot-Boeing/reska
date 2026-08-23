@@ -3,11 +3,11 @@ const fs = require('fs');
 const path = require('path');
 const { db, UPLOAD_DIR, POST_DIR } = require('../db');
 const { uploadPostMedia } = require('../upload');
-const { auth, publicUser, commentsFor, findByIdOrUid } = require('../helpers');
+const { auth, publicUser, commentsFor, findByIdOrUid, extractMentions } = require('../helpers');
 const { sanitizeText } = require('../validate');
 const { randomUid } = require('../security');
 const { log } = require('../logger');
-const { notify, notifyFollowers } = require('../notif');
+const { notify, notifyFollowers, notifyAudience } = require('../notif');
 
 const router = express.Router();
 
@@ -93,11 +93,21 @@ router.post('/', auth, uploadPostMedia('media'), (req, res) => {
   const row = db.prepare(`${POST_QUERY} WHERE p.id = ?`).get(Number(r.lastInsertRowid));
   log('post_create', { req, userId: req.userId, meta: { postId: row.id, hasMedia: !!media, repost: !!repostOf } });
   if (!repostOf) {
-    notifyFollowers(
-      req.userId,
-      { title: req.user.name, body: 'опубликовал(а) новый пост', data: { url: 'feed' } },
-      req.app.get('onlineUsers')
+    notifyAudience(
+      req.app,
+      req.user,
+      'post',
+      { body: 'опубликовал(а) новый пост', url: 'feed' },
+      { followers: true, friends: true }
     );
+    extractMentions(text).forEach((u) =>
+      notify(req.app, u.id, req.user, 'mention', { body: 'упомянул(а) вас в посте', url: 'feed' })
+    );
+  } else {
+    const orig = db.prepare('SELECT user_id FROM posts WHERE id = ?').get(repostOf);
+    if (orig && orig.user_id !== req.userId) {
+      notify(req.app, orig.user_id, req.user, 'repost', { body: 'перепостил(а) ваш пост', url: 'feed' });
+    }
   }
   res.status(201).json({ post: postWithMeta(row, req.userId) });
 });
@@ -215,6 +225,11 @@ router.post('/:id/comments', auth, (req, res) => {
       });
     }
   }
+  extractMentions(text).forEach((u) => {
+    if (u.id !== req.userId && u.id !== post.user_id) {
+      notify(req.app, u.id, req.user, 'mention', { body: 'упомянул(а) вас в комментарии', url: 'feed' });
+    }
+  });
   res.status(201).json({ comment: row });
 });
 

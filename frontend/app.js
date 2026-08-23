@@ -1,4 +1,4 @@
-
+﻿
 /* =========================================================
    РЕСКА — клиент (SPA без фреймворков)
    Безопасность: CSRF double-submit, капча, 2FA (TOTP),
@@ -759,7 +759,6 @@ function buildPost(post) {
 
   const likeBtn = $('[data-action="like"]', node);
   likeBtn.classList.toggle('liked', !!post.liked);
-  likeBtn.querySelector('.pact-ico').textContent = post.liked ? '❤️' : '🤍';
   likeBtn.querySelector('.like-count').textContent = post.likes || '';
   $('[data-action="toggle-comments"] .comment-count', node).textContent = post.comments || '';
   $('.comment-self-avatar', node).src = mediaUrl(me.avatar);
@@ -802,7 +801,7 @@ async function viewFeed(reset = true) {
   const view = $('#view');
   if (reset) {
     feedState = { before: 0, hasMore: true, loading: false, observer: null };
-    view.innerHTML = `<div class="stories-bar" id="stories-bar"></div><div class="feed" id="post-feed"></div>`;
+    view.innerHTML = `<div class="screen-head"><span class="screen-ico" data-ico="bolt"></span><div><h1 class="page-title" style="margin:0">Оперативная сводка</h1><div class="screen-sub">Лента событий дежурной части</div></div></div><div class="stories-bar" id="stories-bar"></div><div class="feed" id="post-feed"></div>`;
     loadStoriesBar();
   }
   const feed = $('#post-feed');
@@ -953,7 +952,6 @@ function wirePostEvents(feed) {
           try {
             const res = await api(`/posts/${postNode.dataset.uid || postNode.dataset.id}/like`, { method: 'POST' });
             likeBtn.classList.add('liked');
-            likeBtn.querySelector('.pact-ico').textContent = '❤️';
             likeBtn.querySelector('.like-count').textContent = res.likes || '';
             const heart = document.createElement('div');
             heart.className = 'post-heart';
@@ -978,7 +976,6 @@ function wirePostEvents(feed) {
             ? await api(`/posts/${id}/like`, { method: 'DELETE' })
             : await api(`/posts/${id}/like`, { method: 'POST' });
           actionBtn.classList.toggle('liked', res.liked);
-          actionBtn.querySelector('.pact-ico').textContent = res.liked ? '❤️' : '🤍';
           actionBtn.querySelector('.like-count').textContent = res.likes || '';
         } catch (err) { toast(err.message, 'error'); }
       }
@@ -1151,7 +1148,7 @@ async function viewVideos(isClips) {
   videoState = { before: 0, hasMore: true, loading: false, observer: null };
   view.innerHTML = `
     <div class="page-head">
-      <h1 class="page-title" style="margin:0">🎬 Видео</h1>
+      <h1 class="page-title" style="margin:0"><span class="screen-ico" data-ico="video"></span>Видео</h1>
       <a class="btn btn-primary" href="#/videos-new">＋ Загрузить видео</a>
     </div>
     <div class="video-grid" id="video-grid"></div>`;
@@ -1354,7 +1351,7 @@ async function viewClipsReel(videos) {
       const isLiked = btn.classList.contains('liked');
       const res = await api(`/videos/${vidUid}/like`, { method: isLiked ? 'DELETE' : 'POST' });
       btn.classList.toggle('liked', res.liked);
-      btn.querySelector('.clip-act-ico').textContent = res.liked ? '❤️' : '🤍';
+      btn.querySelector('.clip-act-ico').classList.toggle('is-liked', res.liked);
       btn.querySelector('.clip-like-count').textContent = res.likes || '0';
     } catch (err) { toast(err.message, 'error'); }
   }
@@ -1504,12 +1501,12 @@ async function openVideoOverlay(id) {
          <span class="video-stats">👁 ${fmtViews(v.views)}</span>
          <span class="video-stats">${timeAgo(v.created_at)}</span>
           <div class="watch-actions">
-            <button class="pact ${v.liked ? 'liked' : ''}" data-action="vlike">
-              <span class="pact-ico">${v.liked ? '❤️' : '🤍'}</span><span class="like-count">${v.likes || ''}</span>
-            </button>
-            <button class="pact" data-action="vreact" title="Реакция"><span class="pact-ico">😊</span></button>
-            <button class="pact" data-action="share"><span class="pact-ico">🔗</span><span>Поделиться</span></button>
-            ${v.user_id === me.id || me.role === 'admin' ? `<button class="pact pact-del" data-action="vdel"><span class="pact-ico">🗑</span><span>Удалить</span></button>` : ''}
+             <button class="pact ${v.liked ? 'liked' : ''}" data-action="vlike">
+               <span class="pact-ico${v.liked ? ' is-liked' : ''}" data-ico="heart_o"></span><span class="like-count">${v.likes || ''}</span>
+             </button>
+             <button class="pact" data-action="vreact" title="Реакция"><span class="pact-ico" data-ico="smile"></span></button>
+             <button class="pact" data-action="share"><span class="pact-ico" data-ico="share"></span><span>Поделиться</span></button>
+             ${v.user_id === me.id || me.role === 'admin' ? `<button class="pact pact-del" data-action="vdel"><span class="pact-ico" data-ico="close"></span><span>Удалить</span></button>` : ''}
           </div>
           <div class="post-reactions" id="video-reactions"></div>
        </div>
@@ -1541,7 +1538,7 @@ async function openVideoOverlay(id) {
         ? await api(`/videos/${id}/like`, { method: 'DELETE' })
         : await api(`/videos/${id}/like`, { method: 'POST' });
       likeBtn.classList.toggle('liked', res.liked);
-      likeBtn.querySelector('.pact-ico').textContent = res.liked ? '❤️' : '🤍';
+      likeBtn.querySelector('.pact-ico').classList.toggle('is-liked', res.liked);
       likeBtn.querySelector('.like-count').textContent = res.likes || '';
     } catch (err) { toast(err.message, 'error'); }
   });
@@ -1609,7 +1606,7 @@ function viewVideoForm(isClip) {
   const view = $('#view');
   view.innerHTML = `
     <div class="form-card card">
-      <h1 class="page-title">${isClip ? '🎬 Добавить клип' : '▶ Загрузить видео'}</h1>
+      <h1 class="page-title">${isClip ? '<span class="screen-ico" data-ico="clip"></span>Добавить клип' : '<span class="screen-ico" data-ico="video"></span>Загрузить видео'}</h1>
       <form id="video-form">
         <div class="form-row">
           <label>Название *</label>
@@ -1678,7 +1675,7 @@ async function viewMessages(openChatUid) {
   view.innerHTML = `
     <div class="chat-list-screen card">
       <div class="chat-list-head">
-        <div class="page-title" style="margin:0">💬 Чаты</div>
+        <div class="page-title" style="margin:0"><span class="screen-ico" data-ico="chat"></span>Чаты</div>
       </div>
       <button class="btn btn-primary btn-block" data-action="new-chat">＋ Новый чат</button>
       <button class="btn btn-block self-chat-btn" data-action="self-chat">📝 Сообщения себе</button>
@@ -2711,43 +2708,49 @@ async function viewProfile(id) {
   const phoneHref = u.phone ? 'tel:' + u.phone.replace(/[^\+0-9]/g, '') : '';
   view.innerHTML = `
     <div class="profile">
-      <div class="profile-cover" ${u.cover ? `style="background-image:url('${esc(mediaUrl(u.cover))}')"` : ''}>
-        ${isMe ? `<button class="btn btn-ghost cover-edit" data-action="set-cover">🖼 Обложка</button>
-                  <input type="file" accept="image/*" id="cover-input" hidden>` : ''}
-      </div>
-      <div class="profile-head card">
-        <span class="avatar-ring ${u.online ? '' : 'offline'}"><img class="avatar xl" src="${mediaUrl(u.avatar)}" alt=""></span>
-        <div class="profile-info">
+      <div class="profile-hero">
+        <div class="profile-cover">
+          ${u.cover ? `<div class="profile-cover-img" style="background-image:url('${esc(mediaUrl(u.cover))}')"></div>` : ''}
+          <span class="profile-shield" data-ico="shield"></span>
+          ${isMe ? `<button class="btn btn-ghost cover-edit" data-action="set-cover"><span class="bn-ico" data-ico="camera"></span>Обложка</button>
+                    <input type="file" accept="image/*" id="cover-input" hidden>` : ''}
+        </div>
+        <div class="profile-body">
+          <div class="profile-avatar-wrap">
+            <img class="profile-avatar" src="${mediaUrl(u.avatar)}" alt="">
+          </div>
+          <div class="duty-status"><span class="dot"></span>${u.online ? 'На дежурстве' : 'Не на дежурстве'}</div>
           <div class="profile-name">${esc(isMe ? u.name : displayName(u))}
             <span class="role-badge ${u.role}">${u.role === 'admin' ? 'АДМИН' : 'УЧАСТНИК'}</span>
           </div>
-          ${!isMe && aliases.get(u.uid) ? `<div class="profile-status muted" style="font-size:13px">${esc(u.name)}</div>` : ''}
-          <div class="profile-status">${u.online ? '<span class="online-dot"></span> онлайн' : ''} ${esc(u.status || '')}</div>
+          <div class="profile-handle">@${esc(u.username)}</div>
+          <div class="profile-rank">${u.role === 'admin' ? 'СТАРШИЙ ОПЕРАТИВНЫЙ ДЕЖУРНЫЙ' : 'УЧАСТНИК ОПЕРАТИВНОГО ПОСТА'}</div>
+          ${!isMe && aliases.get(u.uid) ? `<div class="profile-bio muted">${esc(u.name)}</div>` : ''}
           <p class="profile-bio">${esc(u.bio || '')}</p>
-          ${u.phone ? `<p class="profile-bio"><a class="phone-link" href="${esc(phoneHref)}">📞 ${esc(u.phone)}</a></p>` : ''}
-          <div class="profile-stats">
-            <div class="stat"><b>${data.stats.posts}</b><span>Постов</span></div>
-            <div class="stat"><b>${data.stats.videos}</b><span>Видео</span></div>
-            <div class="stat"><b id="f-count">${data.stats.followers}</b><span>Подписчиков</span></div>
-            <div class="stat"><b>${data.stats.following}</b><span>Подписок</span></div>
+          ${u.phone ? `<p class="profile-bio"><a class="phone-link" href="${esc(phoneHref)}"><span class="bn-ico" data-ico="phone"></span> ${esc(u.phone)}</a></p>` : ''}
+          <div class="op-stats">
+            <div class="op-stat"><b>${data.stats.posts}</b><span>Публикации</span></div>
+            <div class="op-stat"><b>${data.stats.videos}</b><span>Видео</span></div>
+            <div class="op-stat"><b id="f-count">${data.stats.followers}</b><span>Подписчики</span></div>
+            <div class="op-stat"><b>${data.stats.following}</b><span>Подписки</span></div>
           </div>
-          <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+          <div class="profile-actions">
             ${isMe
-              ? `<button class="btn btn-ghost" data-action="edit-profile">✏ Редактировать</button>
-                 <button class="btn btn-ghost" data-action="logout" style="color:var(--danger);border-color:var(--danger)">🚪 Выйти</button>`
+              ? `<button class="btn btn-ghost" data-action="edit-profile"><span class="bn-ico" data-ico="settings"></span>Редактировать</button>
+                 <button class="btn btn-ghost" data-action="logout" style="color:var(--danger);border-color:var(--danger)"><span class="bn-ico" data-ico="logout"></span>Выйти</button>`
               : `<button class="btn ${data.isFollowing ? 'btn-ghost' : 'btn-primary'}" data-action="follow" data-state="${data.isFollowing ? '1' : '0'}">
                    ${data.isFollowing ? '✓ Вы подписаны' : '＋ Подписаться'}</button>
                  <button class="btn btn-ghost" data-action="friend" data-relation="${data.relation || 'none'}" style="color:var(--accent);border-color:var(--accent)">${friendBtnLabel(data.relation)}</button>
                  <button class="btn btn-ghost" data-action="alias">✏ Имя</button>`
             }
-            <button class="btn btn-ghost" data-action="message" ${isMe ? 'disabled' : ''}>💬 Написать</button>
-            ${!isMe ? `<button class="btn btn-ghost" data-action="call" data-uid="${u.uid}">📞 Позвонить</button>` : ''}
+            <button class="btn btn-ghost" data-action="message" ${isMe ? 'disabled' : ''}><span class="bn-ico" data-ico="chat"></span>Написать</button>
+            ${!isMe ? `<button class="btn btn-ghost" data-action="call" data-uid="${u.uid}"><span class="bn-ico" data-ico="phone"></span>Позвонить</button>` : ''}
           </div>
         </div>
       </div>
       <div class="profile-tabs-nav">
-        <button data-ptab="posts" class="active">📝 Посты</button>
-        <button data-ptab="videos">▶ Видео</button>
+        <button data-ptab="posts" class="active"><span class="bn-ico" data-ico="notes"></span>Посты</button>
+        <button data-ptab="videos"><span class="bn-ico" data-ico="video"></span>Видео</button>
       </div>
       <div id="profile-posts"></div>
       <div class="video-grid hidden" id="profile-videos"></div>
@@ -2949,7 +2952,7 @@ async function viewSecurity() {
   let totp = false;
   try { totp = (await api('/auth/2fa/status')).enabled; } catch (e) {}
   view.innerHTML = `
-    <div class="page-title">🔐 Безопасность</div>
+    <div class="page-title"><span class="screen-ico" data-ico="shield"></span>Безопасность</div>
     <div class="form-card card" id="sec-2fa">
       <h3>Двухфакторная аутентификация (2FA)</h3>
       <div id="sec-2fa-body"></div>
@@ -3043,7 +3046,7 @@ async function viewSearch(type) {
   const view = $('#view');
   const isPeople = type === 'all' || type === 'users';
   view.innerHTML = `
-    <div class="page-title">🔍 Поиск: ${esc(currentSearch)}</div>
+    <div class="page-title"><span class="screen-ico" data-ico="search"></span>Поиск: ${esc(currentSearch)}</div>
     <div class="search-tabs" style="display:flex;gap:8px;margin-bottom:18px">
       <button class="btn btn-sm ${type === 'all' ? '' : 'btn-ghost'}" data-t="all">Все</button>
       <button class="btn btn-sm ${type === 'users' ? '' : 'btn-ghost'}" data-t="users">Люди</button>
@@ -3269,7 +3272,7 @@ async function viewNotes() {
   const view = $('#view');
   view.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-      <div class="page-title" style="margin:0">📝 Конспекты</div>
+      <div class="page-title" style="margin:0"><span class="screen-ico" data-ico="notes"></span>Конспекты</div>
       <button class="btn btn-primary btn-sm" id="note-add">＋ Новый</button>
     </div>
     <div class="notes-grid" id="notes-grid"></div>`;
@@ -3331,7 +3334,7 @@ function viewFavorites() {
   const view = $('#view');
   const favs = LS.load(LS.favKey());
   view.innerHTML = `
-    <div class="page-title">⭐ Избранное</div>
+    <div class="page-title"><span class="screen-ico" data-ico="star"></span>Избранное</div>
     <div id="fav-list"></div>`;
   const list = $('#fav-list');
   if (!favs.length) { list.innerHTML = `<div class="empty">Пусто. Нажмите «⭐» на посте или видео, чтобы добавить.</div>`; return; }
@@ -3369,7 +3372,7 @@ function favCard(f) {
 async function viewFriends() {
   const view = $('#view');
   view.innerHTML = `
-    <div class="page-title" style="margin-bottom:18px">👥 Друзья</div>
+    <div class="page-title" style="margin-bottom:18px"><span class="screen-ico" data-ico="friends"></span>Друзья</div>
     <div class="tabs" id="friend-tabs">
       <button class="tab active" data-tab="friends">Друзья</button>
       <button class="tab" data-tab="incoming">Входящие заявки</button>
@@ -3473,7 +3476,7 @@ async function viewNotifications() {
   const view = $('#view');
   view.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-      <div class="page-title" style="margin:0">🔔 Уведомления</div>
+      <div class="page-title" style="margin:0"><span class="screen-ico" data-ico="bell"></span>Уведомления</div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-ghost btn-sm" id="notif-settings">⚙</button>
         <button class="btn btn-ghost btn-sm" id="notif-read-all">Прочитать все</button>
@@ -3490,9 +3493,14 @@ async function viewNotifications() {
     friend_request: 'хочет добавить вас в друзья',
     friend_accepted: 'принял(а) вашу заявку в друзья',
     message: 'отправил(а) сообщение',
-    react: 'отреагировал(а) на вашу запись'
+    react: 'отреагировал(а) на вашу запись',
+    post: 'опубликовал(а) новый пост',
+    video: 'опубликовал(а) новое видео',
+    repost: 'перепостил(а) ваш пост',
+    mention: 'упомянул(а) вас',
+    call: 'звонок'
   };
-  const TYPE_ICO = { like: '❤️', comment: '💬', follow: '➕', friend_request: '🤝', friend_accepted: '🤝', message: '💬', react: '😊' };
+  const TYPE_ICO = { like: 'heart', comment: 'comment', follow: 'plus', friend_request: 'friends', friend_accepted: 'friends', message: 'chat', react: 'smile', post: 'notes', video: 'video', repost: 'repost', mention: 'alert', call: 'phone' };
 
   function row(n) {
     const el = document.createElement('a');
@@ -3511,7 +3519,8 @@ async function viewNotifications() {
         ${n.body ? `<div class="muted" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(n.body)}</div>` : ''}
         <div class="muted" style="font-size:11px">${timeAgo(n.created_at)}${n.read ? '' : ' · новый'}</div>
       </div>
-      <span style="font-size:18px">${TYPE_ICO[n.type] || '🔔'}</span>`;
+      <span class="notif-ico" data-ico="${TYPE_ICO[n.type] || 'bell'}"></span>
+      ${!n.read ? '<span class="notif-dot"></span>' : ''}`;
     if (!n.read) el.addEventListener('click', () => {
       api('/notifications/read', { method: 'POST', body: { id: n.id } });
       const b = $('#notif-badge');
@@ -3535,7 +3544,7 @@ async function viewNotifications() {
     el.href = href;
     const names = g.items.slice(0, 2).map((i) => i.actor_name).join(', ');
     el.innerHTML = `
-      <div class="avatar" style="display:flex;align-items:center;justify-content:center;font-size:20px">${TYPE_ICO[g.type] || '🔔'}</div>
+      <span class="notif-ico" data-ico="${TYPE_ICO[g.type] || 'bell'}"></span>
       <div style="flex:1;min-width:0">
         <div><span style="font-weight:700">${count} ${count === 1 ? 'человек' : 'человек'}</span>
           <span class="muted">${esc(TYPE_TEXT[g.type] || g.type)}</span></div>
@@ -3585,7 +3594,7 @@ async function viewNotifications() {
 async function viewNotifSettings() {
   const view = $('#view');
   view.innerHTML = `
-    <div class="page-title" style="margin:0 0 16px">⚙ Настройки уведомлений</div>
+    <div class="page-title" style="margin:0 0 16px"><span class="screen-ico" data-ico="settings"></span>Настройки уведомлений</div>
     <div class="card" id="notif-settings-card" style="padding:8px 4px">
       <div class="empty">Загрузка…</div>
     </div>`;
@@ -3781,7 +3790,7 @@ async function viewGroups() {
   const view = $('#view');
   view.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-      <div class="page-title" style="margin:0">👥 Группы</div>
+      <div class="page-title" style="margin:0"><span class="screen-ico" data-ico="group"></span>Группы</div>
       <button class="btn btn-primary btn-sm" id="group-add">＋ Создать</button>
     </div>
     <div class="notes-grid" id="groups-grid"></div>`;
@@ -3982,4 +3991,31 @@ async function logout() {
   showAuth();
 }
 
-document.addEventListener('DOMContentLoaded', () => { wireGlobal(); boot(); });
+/* ---------- Авто-отрисовка SVG-иконок (МЧС) ---------- */
+function paintIcon(el) {
+  if (!el || !window.icon) return;
+  const name = el.getAttribute('data-ico');
+  if (name) el.innerHTML = window.icon(name);
+}
+function paintIcons(root) {
+  (root || document).querySelectorAll('[data-ico]').forEach(paintIcon);
+}
+function setupIconObserver() {
+  const targets = ['view', 'modal-root', 'toast-root'].map((id) => document.getElementById(id)).filter(Boolean);
+  const obs = new MutationObserver((muts) => {
+    muts.forEach((m) => m.addedNodes.forEach((n) => {
+      if (n.nodeType !== 1) return;
+      if (n.matches && n.matches('[data-ico]')) paintIcon(n);
+      if (n.querySelectorAll) n.querySelectorAll('[data-ico]').forEach(paintIcon);
+    }));
+  });
+  targets.forEach((t) => obs.observe(t, { childList: true, subtree: true }));
+  targets.forEach((t) => paintIcons(t));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  paintIcons(document);
+  setupIconObserver();
+  wireGlobal();
+  boot();
+});

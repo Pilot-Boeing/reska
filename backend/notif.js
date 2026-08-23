@@ -78,4 +78,21 @@ function markAllRead(userId) {
   db.prepare('UPDATE notifications SET read = 1 WHERE user_id = ?').run(userId);
 }
 
-module.exports = { notify, notifyFollowers, unreadCount, markRead, markAllRead, getSettings, isMuted };
+/* Записать уведомление всем подписчикам + друзьям (для ленты «Для вас») */
+function notifyAudience(app, actor, type, opts = {}, { followers = true, friends = false } = {}) {
+  const targets = new Set();
+  if (followers) {
+    db.prepare('SELECT user_id FROM follows WHERE following_id = ?')
+      .all(actor.id)
+      .forEach((r) => targets.add(r.user_id));
+  }
+  if (friends) {
+    const a = actor.id;
+    db.prepare('SELECT user_a, user_b FROM friendships WHERE user_a = ? OR user_b = ?')
+      .all(a, a)
+      .forEach((r) => targets.add(r.user_a === a ? r.user_b : r.user_a));
+  }
+  targets.forEach((uid) => notify(app, uid, actor, type, opts));
+}
+
+module.exports = { notify, notifyFollowers, unreadCount, markRead, markAllRead, getSettings, isMuted, notifyAudience };

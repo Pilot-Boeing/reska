@@ -3,14 +3,14 @@ const fs = require('fs');
 const path = require('path');
 const { db, THUMB_DIR, UPLOAD_DIR } = require('../db');
 const { uploadVideo } = require('../upload');
-const { auth, commentsFor, findByIdOrUid } = require('../helpers');
+const { auth, commentsFor, findByIdOrUid, extractMentions } = require('../helpers');
 const { sanitizeText } = require('../validate');
 const { thumbSVG } = require('../demo-assets');
 const { getClientIp } = require('../security');
 const { encryptBuffer } = require('../encryption');
 const { randomUid } = require('../security');
 const { log } = require('../logger');
-const { notify, notifyFollowers } = require('../notif');
+const { notify, notifyFollowers, notifyAudience } = require('../notif');
 
 const router = express.Router();
 
@@ -102,10 +102,15 @@ router.post('/', auth, uploadVideo('video'), (req, res) => {
   const row = db.prepare(`${VIDEO_QUERY} WHERE v.id = ?`).get(Number(r.lastInsertRowid));
   log('video_create', { req, userId: req.userId, meta: { videoId: row.id } });
   const dest = isClip ? 'clips' : 'videos';
-  notifyFollowers(
-    req.userId,
-    { title: req.user.name, body: `новое видео: ${title}`, data: { url: dest } },
-    req.app.get('onlineUsers')
+  notifyAudience(
+    req.app,
+    req.user,
+    'video',
+    { body: `новое видео: ${title}`, url: dest },
+    { followers: true, friends: true }
+  );
+  extractMentions(req.body.description).forEach((u) =>
+    notify(req.app, u.id, req.user, 'mention', { body: 'упомянул(а) вас в видео', url: dest })
   );
   res.status(201).json({ video: videoWithMeta(row, req.userId) });
 });
@@ -220,6 +225,11 @@ router.post('/:id/comments', auth, (req, res) => {
       });
     }
   }
+  extractMentions(text).forEach((u) => {
+    if (u.id !== req.userId && u.id !== video.user_id) {
+      notify(req.app, u.id, req.user, 'mention', { body: 'упомянул(а) вас в комментарии', url: `watch/${video.uid}` });
+    }
+  });
   res.status(201).json({ comment: row });
 });
 
