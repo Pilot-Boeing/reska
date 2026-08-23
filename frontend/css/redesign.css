@@ -439,3 +439,97 @@ body {
 .views-badge .ico { width: 13px; height: 13px; }
 .clip-mute .ico { width: 20px; height: 20px; }
 
+/* =========================================================
+   СВЕТЛАЯ ТЕМА
+   ========================================================= */
+[data-theme="light"] {
+  --bg: #eaeef5;
+  --bg2: #e1e7f0;
+  --panel: #ffffff;
+  --panel2: #f5f8fc;
+  --panel3: #e9eef6;
+  --border: rgba(255, 106, 0, 0.30);
+  --border-soft: rgba(20, 40, 80, 0.10);
+  --border-strong: rgba(255, 106, 0, 0.55);
+  --mchs: #ff6a00;
+  --mchs2: #ff8c1a;
+  --blue: #15407e;
+  --blue2: #2f7bd9;
+  --text: #16202e;
+  --muted: #5b6878;
+  --shadow: 0 12px 34px rgba(20, 40, 80, 0.14);
+  --shadow-sm: 0 6px 18px rgba(20, 40, 80, 0.10);
+}
+[data-theme="light"] body {
+  background-image:
+    radial-gradient(1100px 560px at 88% -8%, rgba(255, 106, 0, 0.10), transparent 60%),
+    radial-gradient(1000px 520px at -10% 110%, rgba(47, 123, 217, 0.12), transparent 60%);
+  color: var(--text);
+}
+[data-theme="light"] .glass,
+[data-theme="light"] .modal.card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .97), rgba(245, 248, 252, .98));
+  color: var(--text);
+}
+[data-theme="light"] .sidebar {
+  background: linear-gradient(180deg, #ffffff, #f0f4fa 40%, #e9eef6);
+  box-shadow: 6px 0 40px rgba(20, 40, 80, 0.08);
+}
+[data-theme="light"] .topbar { background: rgba(255, 255, 255, .82); }
+[data-theme="light"] .mobilenav { background: rgba(255, 255, 255, .94); }
+[data-theme="light"] .auth-bg { background: linear-gradient(135deg, #cdd9ea, #e9eef6); }
+[data-theme="light"] .auth-card { color: var(--text); }
+[data-theme="light"] .profile-cover {
+  background:
+    var(--grid),
+    linear-gradient(120deg, #cfe0f5, #aec6e8 50%, #ffd9b0);
+}
+[data-theme="light"] .profile-cover::after {
+  background: radial-gradient(600px 200px at 80% -20%, rgba(255, 106, 0, .18), transparent 60%);
+}
+[data-theme="light"] .post-text,
+[data-theme="light"] .profile-bio,
+[data-theme="light"] .notif-text,
+[data-theme="light"] .repost-quote { color: #2a3545; }
+[data-theme="light"] .repost-quote { background: rgba(255, 106, 0, .07); }
+[data-theme="light"] .field input,
+[data-theme="light"] .field textarea,
+[data-theme="light"] .field select { background: #fff; color: var(--text); }
+[data-theme="light"] .splash { background: var(--bg); }
+[data-theme="light"] .search { background: #fff; }
+
+/* кнопка переключателя темы */
+.theme-toggle {
+  background: transparent; border: 1px solid var(--border-soft); color: var(--text);
+  width: 40px; height: 40px; border-radius: 11px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: .18s; flex: none;
+}
+.theme-toggle:hover { border-color: var(--mchs); color: var(--mchs); box-shadow: 0 0 16px rgba(255, 106, 0, .25); }
+.theme-toggle .ico { width: 21px; height: 21px; }
+
+/* =========================================================
+   ЭКРАНЫ: СПИСКИ ПОЛЬЗОВАТЕЛЕЙ / ПОИСК / БИБЛИОТЕКА
+   ========================================================= */
+.user-row { display: flex; align-items: center; gap: 12px; }
+.user-row .avatar { width: 48px; height: 48px; border-radius: 50%; border: 2px solid var(--border-soft); flex: none; }
+.user-row > div { flex: 1; min-width: 0; }
+.user-row a { color: var(--text); text-decoration: none; }
+.user-row a:hover { color: var(--mchs); }
+
+.search-block { margin-bottom: 22px; }
+.search-block-title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 16px; font-weight: 800; color: var(--mchs2); margin-bottom: 12px;
+}
+.search-block-title .screen-ico .ico { width: 18px; height: 18px; }
+
+.notes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.note-card { padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+.note-card h3 { font-size: 16px; font-weight: 800; color: var(--text); }
+.note-card p { color: var(--muted); font-size: 13.5px; line-height: 1.5; flex: 1; overflow: hidden; }
+.note-date { font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+.note-date .bn-ico .ico { width: 14px; height: 14px; }
+.note-actions { display: flex; gap: 8px; margin-top: 4px; }
+.note-actions .btn { flex: 1; justify-content: center; }
+

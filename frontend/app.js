@@ -3068,13 +3068,13 @@ async function viewSearch(type) {
   let html = '';
 
   if ((type === 'all' || type === 'users') && data.users.length) {
-    html += `<div class="search-block"><h2>👤 Люди (${data.users.length})</h2><div id="sr-users"></div></div>`;
+    html += `<div class="search-block"><h2 class="search-block-title"><span class="screen-ico" data-ico="user"></span>Люди (${data.users.length})</h2><div id="sr-users"></div></div>`;
   }
   if ((type === 'all' || type === 'posts') && data.posts.length) {
-    html += `<div class="search-block"><h2>📝 Посты (${data.posts.length})</h2><div class="feed" id="sr-posts"></div></div>`;
+    html += `<div class="search-block"><h2 class="search-block-title"><span class="screen-ico" data-ico="notes"></span>Посты (${data.posts.length})</h2><div class="feed" id="sr-posts"></div></div>`;
   }
   if ((type === 'all' || type === 'videos') && data.videos.length) {
-    html += `<div class="search-block"><h2>▶ Видео (${data.videos.length})</h2><div class="video-grid" id="sr-videos"></div></div>`;
+    html += `<div class="search-block"><h2 class="search-block-title"><span class="screen-ico" data-ico="video"></span>Видео (${data.videos.length})</h2><div class="video-grid" id="sr-videos"></div></div>`;
   }
   results.innerHTML = html || `<div class="empty">Ничего не найдено по запросу «${esc(currentSearch)}»</div>`;
 
@@ -3292,8 +3292,8 @@ function noteCard(n) {
     <p>${esc(n.body)}</p>
     <div class="note-date muted">${timeAgo(n.updated_at)}</div>
     <div class="note-actions">
-      <button class="btn btn-ghost btn-sm" data-act="edit">✏</button>
-      <button class="btn btn-ghost btn-sm" data-act="del">🗑</button>
+      <button class="btn btn-ghost btn-sm" data-act="edit" data-ico="edit"></button>
+      <button class="btn btn-ghost btn-sm" data-act="del" data-ico="trash"></button>
     </div>`;
   el.querySelector('[data-act="edit"]').addEventListener('click', () => noteEditor(n));
   el.querySelector('[data-act="del"]').addEventListener('click', async () => {
@@ -3808,11 +3808,11 @@ function groupCard(g) {
   el.innerHTML = `
     <h3>${esc(g.name)}</h3>
     <p>${esc(g.description)}</p>
-    <div class="note-date muted">👥 ${g.member_count || 1} участн. · ${timeAgo(g.updated_at)}</div>
+    <div class="note-date muted"><span class="bn-ico" data-ico="friends"></span> ${g.member_count || 1} участн. · ${timeAgo(g.updated_at)}</div>
     <div class="note-actions">
       <button class="btn btn-ghost btn-sm" data-act="go">Перейти в чат</button>
-      <button class="btn btn-ghost btn-sm" data-act="edit">✏</button>
-      <button class="btn btn-ghost btn-sm" data-act="del">🗑</button>
+      <button class="btn btn-ghost btn-sm" data-act="edit" data-ico="edit"></button>
+      <button class="btn btn-ghost btn-sm" data-act="del" data-ico="trash"></button>
     </div>`;
   el.querySelector('[data-act="go"]').addEventListener('click', () => {
     if (g.chatUid) go('/messages/' + g.chatUid);
@@ -4013,7 +4013,29 @@ function setupIconObserver() {
   targets.forEach((t) => paintIcons(t));
 }
 
+/* ---------- Тема (тёмная / светлая) ---------- */
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  const btn = document.getElementById('theme-toggle');
+  if (btn) {
+    btn.setAttribute('data-ico', t === 'light' ? 'moon' : 'sun');
+    paintIcon(btn);
+  }
+  try { localStorage.setItem('reska-theme', t); } catch (e) {}
+}
+function setupTheme() {
+  let t = 'dark';
+  try { t = localStorage.getItem('reska-theme') || 'dark'; } catch (e) {}
+  applyTheme(t);
+  const btn = document.getElementById('theme-toggle');
+  if (btn) btn.addEventListener('click', () => {
+    const cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+    applyTheme(cur === 'light' ? 'dark' : 'light');
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  setupTheme();
   paintIcons(document);
   setupIconObserver();
   wireGlobal();

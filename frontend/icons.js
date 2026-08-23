@@ -41,7 +41,11 @@
     mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/>',
     mic_off: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3M3 3l18 18"/>',
     cam_off: '<path d="M4 7h3l2-2h6l2 2h3v11"/><path d="M3 3l18 18"/>',
-    endcall: '<path d="M5 4h3l2 5-2 2a12 12 0 005 5l2-2 5 2v3a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z" transform="rotate(135 12 12)"/>'
+    endcall: '<path d="M5 4h3l2 5-2 2a12 12 0 005 5l2-2 5 2v3a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z" transform="rotate(135 12 12)"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/>',
+    moon: '<path d="M21 12.8A8 8 0 1111.2 3 6.5 6.5 0 0021 12.8z"/>',
+    edit: '<path d="M4 20h4L18.5 9.5l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/>',
+    trash: '<path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/>'
   };
 
   function icon(name, cls) {
