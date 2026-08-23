@@ -13,8 +13,44 @@ services:
       - SESSION_SECRET=${SESSION_SECRET}
       - FCM_SERVICE_ACCOUNT=${FCM_SERVICE_ACCOUNT}
       - CSRF_DISABLED=${CSRF_DISABLED}
+      - STUN_URL=${STUN_URL}
+      - TURN_URL=${TURN_URL}
+      - TURN_USER=${TURN_USER}
+      - TURN_SECRET=${TURN_SECRET}
     volumes:
       - reska-data:/data
+    depends_on:
+      - turn
+
+  # TURN-relay поверх TLS (443) — маскирует WebRTC-трафик под HTTPS,
+  # чтобы звонки работали в условиях ограничений РКН.
+  turn:
+    image: coturn/coturn:latest
+    container_name: reska-turn
+    restart: unless-stopped
+    command:
+      - "turnserver"
+      - "-n"
+      - "--listening-port=3478"
+      - "--tls-listening-port=5349"
+      - "--listening-ip=0.0.0.0"
+      - "--relay-ip=0.0.0.0"
+      - "--external-ip=${SERVER_IP}"
+      - "--fingerprint"
+      - "--lt-cred-mech"
+      - "--user=reska:${TURN_SECRET}"
+      - "--realm=reska"
+      - "--cert=/certs/fullchain.pem"
+      - "--pkey=/certs/privkey.pem"
+      - "--no-cli"
+      - "--min-port=49160"
+      - "--max-port=49200"
+    ports:
+      - "3478:3478/udp"
+      - "5349:5349"
+      - "443:5349"
+    volumes:
+      - ./certs:/certs:ro
 
 volumes:
   reska-data:

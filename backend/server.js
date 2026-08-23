@@ -194,6 +194,7 @@ app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/library', require('./routes/library'));
 app.use('/api/search', require('./routes/search'));
 app.use('/api/stories', require('./routes/stories'));
+app.use('/api/call', require('./routes/call'));
 
 app.get('/api/health', (req, res) =>
   res.json({ ok: true, db: db.prepare('SELECT 1 AS x').get().x })
@@ -236,6 +237,8 @@ io.on('connection', (socket) => {
     onlineUsers.delete(socket.userId);
   });
 });
+
+require('./call').setupCalls(io);
 
 /* ---------- HTTP + HTTPS ---------- */
 async function start() {

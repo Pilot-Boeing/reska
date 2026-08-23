@@ -609,6 +609,10 @@ async function main() {
   r = await api('GET', '/api/stories', { jar: jarA });
   check('story появляется в ленте', Array.isArray(r.data.groups) && r.data.groups.some((g) => g.stories.length));
 
+  // Звонки (WebRTC) — конфиг ICE
+  r = await api('GET', '/api/call/config', { jar: jarA });
+  check('конфиг звонков возвращает iceServers (массив)', r.res.status === 200 && Array.isArray(r.data.iceServers));
+
   server.kill();
   await new Promise((res) => server.once('exit', res));
   for (let i = 0; i < 5; i++) {

@@ -510,6 +510,8 @@ async function connectSocket() {
   socket.on('reconnect', updateNetStatus);
   socket.on('connect_error', updateNetStatus);
 
+  await registerCallHandlers();
+
   socket.on('chat:message', async (payload) => {
     const mine = payload.message ? payload.message.sender_id === me.id : false;
     const action = payload.action || 'new';
@@ -1785,6 +1787,7 @@ async function openChat(chatUid) {
     head = `<a href="#/profile/${esc(chat.other.uid)}"><img class="avatar sm" src="${mediaUrl(chat.other.avatar)}" alt=""></a>
       <b>${esc(displayName(chat.other))}</b>
       <span class="e2ee-tag" title="Сообщения шифруются на вашем устройстве (E2EE)">🔒 E2EE</span>
+      <button class="btn btn-ghost btn-sm chat-call" id="chat-call" title="Позвонить">📞</button>
       <button class="btn btn-ghost btn-sm chat-mute" id="chat-mute" title="Без звука">${chat.muted ? '🔕' : '🔔'}</button>
       <button class="btn btn-ghost btn-sm chat-del" title="Удалить чат">🗑</button>`;
   }
@@ -1826,6 +1829,8 @@ async function openChat(chatUid) {
       toast(res.muted ? 'Чат без звука' : 'Звук включён');
     } catch (e) { toast(e.message, 'error'); }
   });
+  const callBtn = $('#chat-call', view);
+  if (callBtn) callBtn.addEventListener('click', () => startCall(chat.other.uid, 'video'));
 
   const msgs = [];
   for (const m of data.messages) msgs.push(await decryptMessage(m, chatUid));
@@ -2736,6 +2741,7 @@ async function viewProfile(id) {
                  <button class="btn btn-ghost" data-action="alias">✏ Имя</button>`
             }
             <button class="btn btn-ghost" data-action="message" ${isMe ? 'disabled' : ''}>💬 Написать</button>
+            ${!isMe ? `<button class="btn btn-ghost" data-action="call" data-uid="${u.uid}">📞 Позвонить</button>` : ''}
           </div>
         </div>
       </div>
@@ -2799,6 +2805,9 @@ async function viewProfile(id) {
     if (act === 'message') {
       const res = await api('/chats', { method: 'POST', body: { user_id: u.id } });
       go('/messages/' + res.uid);
+    }
+    if (act === 'call') {
+      startCall(btn.dataset.uid, 'video');
     }
     if (act === 'alias') {
       const current = aliases.get(u.uid) || '';
@@ -3609,6 +3618,162 @@ async function viewNotifSettings() {
       toast('Сохранено');
     } catch (err) { toast(err.message, 'error'); }
   });
+}
+
+/* ---------- ЗВОНКИ (WebRTC, TURN-relay для РКН) ---------- */
+let callPc = null;
+let callLocalStream = null;
+let callIceServers = null;
+let callPeerUid = null;
+let callId = null;
+let callIsCaller = false;
+
+async function ensureIceServers() {
+  if (callIceServers) return callIceServers;
+  try { callIceServers = (await api('/call/config')).iceServers || []; }
+  catch (e) { callIceServers = []; }
+  return callIceServers;
+}
+
+function buildCallOverlay() {
+  const overlay = document.createElement('div');
+  overlay.className = 'call-overlay hidden';
+  overlay.id = 'call-overlay';
+  overlay.innerHTML = `
+    <div class="call-card">
+      <div class="call-status" id="call-status">Звонок…</div>
+      <video class="call-remote" id="call-remote" autoplay playsinline></video>
+      <video class="call-local" id="call-local" autoplay playsinline muted></video>
+      <div class="call-name" id="call-name"></div>
+      <div class="call-controls">
+        <button class="call-btn" id="call-toggle-mic">🎤</button>
+        <button class="call-btn" id="call-toggle-cam">📷</button>
+        <button class="call-btn call-end" id="call-end-btn">✕</button>
+      </div>
+      <div class="call-incoming-actions hidden" id="call-incoming">
+        <button class="btn btn-primary" id="call-accept">Принять</button>
+        <button class="btn btn-ghost" id="call-decline">Отклонить</button>
+      </div>
+    </div>`;
+  $('#modal-root').appendChild(overlay);
+  $('#call-end-btn', overlay).addEventListener('click', endCall);
+  $('#call-toggle-mic', overlay).addEventListener('click', () => {
+    if (!callLocalStream) return;
+    const tr = callLocalStream.getAudioTracks()[0];
+    if (tr) { tr.enabled = !tr.enabled; $('#call-toggle-mic', overlay).textContent = tr.enabled ? '🎤' : '🔇'; }
+  });
+  $('#call-toggle-cam', overlay).addEventListener('click', () => {
+    if (!callLocalStream) return;
+    const tr = callLocalStream.getVideoTracks()[0];
+    if (tr) { tr.enabled = !tr.enabled; $('#call-toggle-cam', overlay).textContent = tr.enabled ? '📷' : '🚫'; }
+  });
+  return overlay;
+}
+
+function showCallOverlay() { const o = $('#call-overlay') || buildCallOverlay(); o.classList.remove('hidden'); return o; }
+function hideCallOverlay() { const o = $('#call-overlay'); if (o) o.classList.add('hidden'); }
+
+function newPc() {
+  const pc = new RTCPeerConnection({ iceServers: callIceServers || [] });
+  pc.onicecandidate = (e) => {
+    if (e.candidate && callPeerUid) socket.emit('call:ice', { callId, to: callPeerUid, candidate: e.candidate });
+  };
+  pc.ontrack = (e) => {
+    const remote = $('#call-remote');
+    if (remote && e.streams[0]) remote.srcObject = e.streams[0];
+  };
+  return pc;
+}
+
+async function startCall(peerUid, type) {
+  await ensureIceServers();
+  callPeerUid = peerUid;
+  callIsCaller = true;
+  const overlay = showCallOverlay();
+  $('#call-incoming', overlay).classList.add('hidden');
+  $('#call-status', overlay).textContent = 'Вызов…';
+  try {
+    callLocalStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'video' });
+  } catch (e) { toast('Нет доступа к камере/микрофону', 'error'); hideCallOverlay(); return; }
+  $('#call-local').srcObject = callLocalStream;
+  callPc = newPc();
+  callLocalStream.getTracks().forEach((t) => callPc.addTrack(t, callLocalStream));
+  socket.emit('call:start', { to: peerUid, type });
+}
+
+async function answerCall(incomingCallId, fromUid, type) {
+  await ensureIceServers();
+  callId = incomingCallId;
+  callPeerUid = fromUid;
+  callIsCaller = false;
+  const overlay = showCallOverlay();
+  $('#call-incoming', overlay).classList.add('hidden');
+  $('#call-status', overlay).textContent = 'Соединение…';
+  try {
+    callLocalStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'video' });
+  } catch (e) { toast('Нет доступа к камере/микрофону', 'error'); hideCallOverlay(); return; }
+  $('#call-local').srcObject = callLocalStream;
+  callPc = newPc();
+  callLocalStream.getTracks().forEach((t) => callPc.addTrack(t, callLocalStream));
+  socket.emit('call:accept', { callId, to: fromUid });
+}
+
+function endCall() {
+  if (callId && callPeerUid) socket.emit('call:end', { callId, to: callPeerUid });
+  cleanupCall();
+}
+
+function cleanupCall() {
+  if (callPc) { try { callPc.close(); } catch (e) {} callPc = null; }
+  if (callLocalStream) { callLocalStream.getTracks().forEach((t) => t.stop()); callLocalStream = null; }
+  const remote = $('#call-remote'); if (remote) remote.srcObject = null;
+  const local = $('#call-local'); if (local) local.srcObject = null;
+  callPeerUid = null; callId = null; callIsCaller = false;
+  hideCallOverlay();
+}
+
+async function registerCallHandlers() {
+  socket.on('call:incoming', async ({ callId: cid, from, type }) => {
+    const u = (await api('/users/' + from).catch(() => ({ user: { name: 'Пользователь' } }))).user;
+    callId = cid; callPeerUid = from;
+    const overlay = showCallOverlay();
+    $('#call-incoming', overlay).classList.remove('hidden');
+    $('#call-status', overlay).textContent = 'Входящий ' + (type === 'video' ? 'видеозвонок' : 'звонок');
+    $('#call-name', overlay).textContent = u.name || u.username || '';
+    $('#call-accept', overlay).onclick = () => answerCall(cid, from, type);
+    $('#call-decline', overlay).onclick = () => { socket.emit('call:decline', { callId: cid, to: from }); cleanupCall(); };
+  });
+
+  socket.on('call:accepted', () => {
+    if (!callPc || !callPeerUid) return;
+    $('#call-status').textContent = 'Соединение…';
+    callPc.createOffer()
+      .then((offer) => callPc.setLocalDescription(offer))
+      .then(() => socket.emit('call:signal', { callId, to: callPeerUid, data: callPc.localDescription }))
+      .catch((e) => toast('Ошибка звонка: ' + e.message, 'error'));
+  });
+
+  socket.on('call:signal', async ({ data }) => {
+    if (!callPc) return;
+    try {
+      await callPc.setRemoteDescription(new RTCSessionDescription(data));
+      if (data.type === 'offer') {
+        const answer = await callPc.createAnswer();
+        await callPc.setLocalDescription(answer);
+        socket.emit('call:signal', { callId, to: callPeerUid, data: callPc.localDescription });
+        $('#call-status').textContent = 'Идёт звонок';
+      } else if (data.type === 'answer') {
+        $('#call-status').textContent = 'Идёт звонок';
+      }
+    } catch (e) { toast('Ошибка сигналинга: ' + e.message, 'error'); }
+  });
+
+  socket.on('call:ice', async ({ candidate }) => {
+    if (callPc && candidate) { try { await callPc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) {} }
+  });
+
+  socket.on('call:declined', () => { toast('Звонок отклонён'); cleanupCall(); });
+  socket.on('call:end', () => { toast('Звонок завершён'); cleanupCall(); });
 }
 
 /* ---------- ГРУППЫ ---------- */
