@@ -594,7 +594,7 @@ body {
 /* Десктоп: виден сайдбар, мобильная навигация скрыта */
 html[data-device="desktop"] .mobilenav { display: none !important; }
 html[data-device="desktop"] .menu-toggle { display: none !important; }
-html[data-device="desktop"] .sidebar { position: sticky; top: 0; height: 100vh; transform: none !important; width: var(--sidebar-w); }
+html[data-device="desktop"] .sidebar { position: fixed; top: 0; left: 0; bottom: 0; height: 100vh; width: var(--sidebar-w); transform: none !important; }
 html[data-device="desktop"] .main { margin-left: var(--sidebar-w); }
 html[data-device="desktop"] .view { max-width: 1040px; padding: 26px 24px; }
 

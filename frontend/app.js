@@ -462,7 +462,9 @@ async function afterLogin() {
   initPush();
   connectSocket();
   await Promise.all([loadAliases(), loadNotifBadge()]);
-  render();
+  const h = location.hash;
+  if (!h || h === '#' || h === '#/' || h === '#/clips') location.hash = '#/feed';
+  else render();
 }
 
 const aliases = new Map(); /* uid -> alias (личные имена) */
