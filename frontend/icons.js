@@ -32,11 +32,9 @@
     alert: '<path d="M12 3l10 18H2z"/><path d="M12 9v5M12 17v.5"/>',
     fire: '<path d="M12 3c1 3-2 4-2 7a2 2 0 004 0c0-1 0-2 0-2 2 2 3 4 3 6a5 5 0 11-10 0c0-4 3-6 5-11z"/>',
     call_video: '<path d="M5 4h3l2 5-2 2a12 12 0 005 5l2-2 5 2v3a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z"/><rect x="2" y="5" width="8" height="6" rx="1" fill="currentColor" stroke="none"/>',
-    chevron: '<path d="M9 6l6 6-6 6"/>',
     bolt: '<path d="M13 3L4 14h7l-1 7 9-11h-7z" fill="currentColor" stroke="none"/>',
     eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
     play: '<path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/>',
-    fire: '<path d="M12 3c1 3-2 4-2 7a2 2 0 004 0c0-1 0-2 0-2 2 2 3 4 3 6a5 5 0 11-10 0c0-4 3-6 5-11z"/>',
     settings: '<circle cx="12" cy="12" r="3.2"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4l1.4-1.4M17 7l1.4-1.4"/>',
     mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/>',
     mic_off: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3M3 3l18 18"/>',
@@ -44,6 +42,9 @@
     endcall: '<path d="M5 4h3l2 5-2 2a12 12 0 005 5l2-2 5 2v3a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z" transform="rotate(135 12 12)"/>',
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/>',
     moon: '<path d="M21 12.8A8 8 0 1111.2 3 6.5 6.5 0 0021 12.8z"/>',
+    info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+    chevron: '<path d="M9 6l6 6-6 6"/>',
+    logout: '<path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>',
     edit: '<path d="M4 20h4L18.5 9.5l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/>',
     trash: '<path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/>'
   };

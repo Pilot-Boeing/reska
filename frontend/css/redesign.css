@@ -533,3 +533,48 @@ body {
 .note-actions { display: flex; gap: 8px; margin-top: 4px; }
 .note-actions .btn { flex: 1; justify-content: center; }
 
+/* вкладки поиска — сегменты */
+.search-tabs .btn { border-radius: 999px; padding: 8px 16px; }
+.search-tabs .btn:not(.btn-ghost) { background: var(--mchs); border-color: var(--mchs); color: #fff; }
+
+/* мобильная навигация — скролл при переполнении */
+.mobilenav { overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
+.mobilenav::-webkit-scrollbar { display: none; }
+.slink-icon .ico { width: 21px; height: 21px; }
+.mn-ico .ico { width: 22px; height: 22px; }
+
+/* кнопки действий профиля — равная ширина */
+.profile-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.profile-actions .btn { flex: 1 1 auto; justify-content: center; min-width: 130px; }
+
+/* настройки (главный экран) */
+.settings-list { display: flex; flex-direction: column; gap: 8px; }
+.settings-item {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 16px; background: var(--card);
+  border: 1px solid var(--border-soft); border-radius: 14px;
+  color: var(--text); text-align: left; width: 100%;
+  cursor: pointer; font-size: 15px; font-weight: 600;
+}
+.settings-item:hover { border-color: var(--mchs); }
+.settings-item .si-ico .ico { width: 22px; height: 22px; color: var(--mchs); }
+.settings-item .si-label { flex: 1; }
+.settings-item .si-chev .ico { width: 18px; height: 18px; color: var(--muted); }
+.settings-item .si-value { color: var(--muted); font-size: 13px; font-weight: 600; }
+.settings-item.danger { color: var(--danger); }
+.settings-item.danger .si-ico .ico { color: var(--danger); }
+
+/* переключатель в настройках уведомлений */
+.settings-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border-soft); }
+.settings-row:last-child, .settings-row:last-of-type { border-bottom: none; }
+.settings-row span { font-weight: 600; color: var(--text); }
+.settings-row input[type=checkbox] { appearance: none; -webkit-appearance: none; width: 46px; height: 26px; border-radius: 13px; background: var(--border); position: relative; cursor: pointer; transition: .2s; flex: none; }
+.settings-row input[type=checkbox]::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: .2s; }
+.settings-row input[type=checkbox]:checked { background: var(--mchs); }
+.settings-row input[type=checkbox]:checked::after { left: 23px; }
+
+/* экран «О приложении» */
+.app-badge { width: 46px; height: 46px; border-radius: 12px; background: var(--mchs-soft); display: flex; align-items: center; justify-content: center; flex: none; }
+.app-badge .ico { width: 26px; height: 26px; color: var(--mchs); }
+.about-row { display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--border-soft); font-size: 13.5px; color: var(--muted); }
+

@@ -373,9 +373,12 @@ async function render() {
       case 'groups': viewGroups(); break;
       case 'friends': await viewFriends(); break;
       case 'notifications': await viewNotifications(); break;
+      case 'about': viewAbout(); break;
       case 'settings':
         if (segs[1] === 'notifications') await viewNotifSettings();
-        else await viewFeed();
+        else if (segs[1] === 'security') viewSecurity();
+        else if (segs[1] === 'profile') viewEditProfile();
+        else viewSettings();
         break;
       default: await viewFeed();
     }
@@ -2783,7 +2786,7 @@ async function viewProfile(id) {
     $('#profile-videos', view).classList.toggle('hidden', postsMode);
   });
 
-  const actions = view.querySelector('.profile-head');
+  const actions = view.querySelector('.profile-actions');
   actions.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
@@ -2819,7 +2822,7 @@ async function viewProfile(id) {
       modal.innerHTML = `
         <div class="modal card">
           <button class="close-x">✕</button>
-          <h2>✏ Личное имя</h2>
+          <h2><span class="screen-ico" data-ico="edit"></span>Личное имя</h2>
           <p class="muted" style="font-size:13px;margin-bottom:12px">Имя, под которым вы видите ${esc(u.name)} (видно только вам)</p>
           <form id="alias-form">
             <div class="form-row"><label>Имя</label><input name="alias" maxlength="40" value="${esc(current)}" placeholder="${esc(u.name)}"></div>
@@ -3627,6 +3630,51 @@ async function viewNotifSettings() {
       toast('Сохранено');
     } catch (err) { toast(err.message, 'error'); }
   });
+}
+
+/* ---------- НАСТРОЙКИ (главный экран) ---------- */
+async function viewSettings() {
+  const view = $('#view');
+  const cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+  view.innerHTML = `
+    <div class="page-title" style="margin:0 0 16px"><span class="screen-ico" data-ico="settings"></span>Настройки</div>
+    <div class="settings-list">
+      <button class="settings-item" data-go="/edit-profile"><span class="si-ico" data-ico="user"></span><span class="si-label">Профиль</span><span class="si-chev" data-ico="chevron"></span></button>
+      <button class="settings-item" data-go="/security"><span class="si-ico" data-ico="shield"></span><span class="si-label">Безопасность</span><span class="si-chev" data-ico="chevron"></span></button>
+      <button class="settings-item" data-go="/settings/notifications"><span class="si-ico" data-ico="bell"></span><span class="si-label">Уведомления</span><span class="si-chev" data-ico="chevron"></span></button>
+      <div class="settings-item" data-act="theme"><span class="si-ico" data-ico="${cur === 'light' ? 'sun' : 'moon'}" id="theme-ico"></span><span class="si-label">Тема оформления</span><span class="si-value" id="theme-val">${cur === 'light' ? 'Светлая' : 'Тёмная'}</span></div>
+      <button class="settings-item" data-go="/about"><span class="si-ico" data-ico="info"></span><span class="si-label">О приложении</span><span class="si-chev" data-ico="chevron"></span></button>
+      <button class="settings-item danger" data-act="logout"><span class="si-ico" data-ico="logout"></span><span class="si-label">Выйти из аккаунта</span></button>
+    </div>`;
+
+  view.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => go(b.dataset.go)));
+  const themeBtn = view.querySelector('[data-act="theme"]');
+  if (themeBtn) themeBtn.addEventListener('click', () => {
+    const c = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+    applyTheme(c === 'light' ? 'dark' : 'light');
+    const now = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+    const ico = document.getElementById('theme-ico');
+    const val = document.getElementById('theme-val');
+    if (ico) { ico.setAttribute('data-ico', now === 'light' ? 'sun' : 'moon'); paintIcon(ico); }
+    if (val) val.textContent = now === 'light' ? 'Светлая' : 'Тёмная';
+  });
+  const logoutBtn = view.querySelector('[data-act="logout"]');
+  if (logoutBtn) logoutBtn.addEventListener('click', () => { if (confirm('Выйти из аккаунта?')) logout(); });
+}
+
+function viewAbout() {
+  const view = $('#view');
+  view.innerHTML = `
+    <div class="page-title" style="margin:0 0 16px"><span class="screen-ico" data-ico="info"></span>О приложении</div>
+    <div class="card" style="padding:20px">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
+        <div class="app-badge" data-ico="shield"></div>
+        <div><div style="font-weight:800;font-size:18px;color:var(--mchs)">РЕСКА</div><div class="muted" style="font-size:13px">Социальная сеть МЧС России</div></div>
+      </div>
+      <p class="muted" style="font-size:13.5px;line-height:1.6">«Оперативный пост» — защищённая российская социальная платформа: лента, видео, группы, зашифрованные чаты и звонки через TURN-релей.</p>
+      <div class="about-row"><span>Версия</span><span>1.0.0</span></div>
+      <div class="about-row"><span>Сервер</span><span>reska-z7h0.onrender.com</span></div>
+    </div>`;
 }
 
 /* ---------- ЗВОНКИ (WebRTC, TURN-relay для РКН) ---------- */
