@@ -1,0 +1,20 @@
+services:
+  reska:
+    build: .
+    container_name: reska
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - SPACE_DB_PATH=/data/space.db
+      - SPACE_UPLOAD_DIR=/data/uploads
+      - SESSION_SECRET=${SESSION_SECRET}
+      - FCM_SERVICE_ACCOUNT=${FCM_SERVICE_ACCOUNT}
+      - CSRF_DISABLED=${CSRF_DISABLED}
+    volumes:
+      - reska-data:/data
+
+volumes:
+  reska-data:
