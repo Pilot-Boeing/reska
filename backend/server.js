@@ -192,6 +192,7 @@ app.use('/api/chats', require('./routes/chat'));
 app.use('/api/push', require('./routes/push'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/library', require('./routes/library'));
+app.use('/api/favorites', require('./routes/favorites'));
 app.use('/api/search', require('./routes/search'));
 app.use('/api/stories', require('./routes/stories'));
 app.use('/api/call', require('./routes/call'));

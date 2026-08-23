@@ -30,11 +30,8 @@ router.get('/', auth, (req, res) => {
   res.json({ users: list });
 });
 
-router.get('/:id', (req, res) => {
-  const user = findByIdOrUid('users', req.params.id);
-  if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+function buildUserDetail(user, req) {
   const id = user.id;
-
   const stats = {
     posts: db.prepare('SELECT COUNT(*) AS n FROM posts WHERE user_id = ?').get(id).n,
     videos: db.prepare('SELECT COUNT(*) AS n FROM videos WHERE user_id = ?').get(id).n,
@@ -69,7 +66,19 @@ router.get('/:id', (req, res) => {
   const online = !!(onlineUsers && onlineUsers.has(id));
   const pub = { ...publicUser(user), online };
   if (req.userId === user.id) pub.phone = user.phone || '';
-  res.json({ user: pub, stats, isFollowing, relation, posts, videos });
+  return { user: pub, stats, isFollowing, relation, posts, videos };
+}
+
+router.get('/me', auth, (req, res) => {
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.userId);
+  if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+  res.json(buildUserDetail(user, req));
+});
+
+router.get('/:id', (req, res) => {
+  const user = findByIdOrUid('users', req.params.id);
+  if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+  res.json(buildUserDetail(user, req));
 });
 
 router.put('/:id', auth, (req, res) => {

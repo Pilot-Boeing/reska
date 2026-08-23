@@ -780,6 +780,12 @@ function buildPost(post) {
 
   if (post.user_id === me.id || me.role === 'admin') $('.post-del', node).classList.remove('hidden');
 
+  const favBtn = $('[data-action="fav"]', node);
+  if (favBtn) {
+    const fuid = post.uid || post.id;
+    ensureFavMap().then(() => { if (favMap && favMap['post:' + fuid]) favBtn.classList.add('is-fav'); }).catch(() => {});
+  }
+
   return node;
 }
 
@@ -1023,6 +1029,10 @@ function wirePostEvents(feed) {
       shareLink(authorHref, 'Поделиться профилем');
     }
 
+    if (action === 'fav') {
+      await toggleFav('post', root.dataset.uid, actionBtn);
+    }
+
     if (action === 'repost') {
       try {
         const res = await api('/posts', { method: 'POST', body: JSON.stringify({ repost_of: root.dataset.id }), headers: { 'Content-Type': 'application/json' } });
@@ -1122,6 +1132,13 @@ function buildVideoCard(v) {
       toast('Видео удалено');
     } catch (err) { toast(err.message, 'error'); }
   });
+
+  const favBtn = $('[data-action="fav"]', node);
+  favBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    await toggleFav('video', v.uid, favBtn);
+  });
+  ensureFavMap().then(() => { if (favMap && favMap['video:' + v.uid]) favBtn.classList.add('is-fav'); }).catch(() => {});
 
   return node;
 }
@@ -1457,6 +1474,13 @@ function buildClipCard(v) {
   });
 
   $('[data-action="share"]', node).addEventListener('click', () => shareLink('#/watch/' + v.uid, v.title));
+
+  const favBtn = $('[data-action="fav"]', node);
+  favBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    await toggleFav('video', v.uid, favBtn);
+  });
+  ensureFavMap().then(() => { if (favMap && favMap['video:' + v.uid]) favBtn.classList.add('is-fav'); }).catch(() => {});
 
   const delBtn = $('[data-action="delete"]', node);
   if (v.user_id === me.id || me.role === 'admin') delBtn.classList.remove('hidden');
@@ -2720,7 +2744,7 @@ async function viewProfile(id) {
       <div class="profile-hero">
         <div class="profile-cover">
           ${u.cover ? `<div class="profile-cover-img" style="background-image:url('${esc(mediaUrl(u.cover))}')"></div>` : ''}
-          <span class="profile-shield" data-ico="shield"></span>
+          <span class="profile-shield" data-ico="fire"></span>
           ${isMe ? `<button class="btn btn-ghost cover-edit" data-action="set-cover"><span class="bn-ico" data-ico="camera"></span>Обложка</button>
                     <input type="file" accept="image/*" id="cover-input" hidden>` : ''}
         </div>
@@ -2750,7 +2774,8 @@ async function viewProfile(id) {
               : `<button class="btn ${data.isFollowing ? 'btn-ghost' : 'btn-primary'}" data-action="follow" data-state="${data.isFollowing ? '1' : '0'}">
                    ${data.isFollowing ? '✓ Вы подписаны' : '＋ Подписаться'}</button>
                  <button class="btn btn-ghost" data-action="friend" data-relation="${data.relation || 'none'}" style="color:var(--accent);border-color:var(--accent)">${friendBtnLabel(data.relation)}</button>
-                 <button class="btn btn-ghost" data-action="alias">✏ Имя</button>`
+                 <button class="btn btn-ghost" data-action="alias">✏ Имя</button>
+                 <button class="btn btn-ghost" data-action="fav-user" style="color:var(--accent);border-color:var(--accent)">⭐ В избранное</button>`
             }
             <button class="btn btn-ghost" data-action="message" ${isMe ? 'disabled' : ''}><span class="bn-ico" data-ico="chat"></span>Написать</button>
             ${!isMe ? `<button class="btn btn-ghost" data-action="call" data-uid="${u.uid}"><span class="bn-ico" data-ico="phone"></span>Позвонить</button>` : ''}
@@ -2820,6 +2845,9 @@ async function viewProfile(id) {
     }
     if (act === 'call') {
       startCall(btn.dataset.uid, 'video');
+    }
+    if (act === 'fav-user') {
+      await toggleFav('user', u.uid, btn);
     }
     if (act === 'alias') {
       const current = aliases.get(u.uid) || '';
@@ -3339,15 +3367,53 @@ function noteEditor(n) {
   });
 }
 /* ---------- ИЗБРАННОЕ ---------- */
+let favMap = null; // "type:itemId" -> favorite id (для переключателя)
+
+async function ensureFavMap() {
+  if (favMap) return favMap;
+  try {
+    const data = await api('/favorites', { silent: true });
+    favMap = {};
+    (data.favorites || []).forEach((f) => { favMap[f.item_type + ':' + f.item_id] = f.id; });
+  } catch (e) { favMap = {}; }
+  return favMap;
+}
+
+async function toggleFav(type, itemId, btn) {
+  await ensureFavMap();
+  const key = type + ':' + itemId;
+  try {
+    if (favMap[key]) {
+      await api('/favorites/' + favMap[key], { method: 'DELETE' });
+      delete favMap[key];
+      if (btn) btn.classList.remove('is-fav');
+      toast('Удалено из избранного');
+    } else {
+      const r = await api('/favorites', { method: 'POST', body: { item_type: type, item_id: itemId } });
+      favMap[key] = r.favorite.id;
+      if (btn) btn.classList.add('is-fav');
+      toast('Добавлено в избранное');
+    }
+    if ($('#view .page-title') && location.hash.indexOf('/favorites') > -1) viewFavorites();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
 function viewFavorites() {
   const view = $('#view');
-  const favs = LS.load(LS.favKey());
   view.innerHTML = `
     <div class="page-title"><span class="screen-ico" data-ico="star"></span>Избранное</div>
     <div id="fav-list"></div>`;
   const list = $('#fav-list');
-  if (!favs.length) { list.innerHTML = `<div class="empty">Пусто. Нажмите «⭐» на посте или видео, чтобы добавить.</div>`; return; }
-  favs.sort((a, b) => b.saved_at - a.saved_at).forEach((f) => list.appendChild(favCard(f)));
+  list.innerHTML = `<div class="empty">Загрузка…</div>`;
+  api('/favorites')
+    .then((data) => {
+      favMap = {};
+      const favs = data.favorites || [];
+      favs.forEach((f) => { favMap[f.item_type + ':' + f.item_id] = f.id; });
+      if (!favs.length) { list.innerHTML = `<div class="empty">Пусто. Нажмите «⭐» на посте или видео, чтобы добавить.</div>`; return; }
+      favs.forEach((f) => list.appendChild(favCard(f)));
+    })
+    .catch((err) => { list.innerHTML = `<div class="empty">${esc(err.message)}</div>`; });
 }
 
 function favCard(f) {
@@ -3356,24 +3422,35 @@ function favCard(f) {
   if (f.type === 'post') {
     el.innerHTML = `
       <div class="fav-post-text">${esc(f.text || '(без текста)')}</div>
-      <div class="fav-post-meta muted">${f.author || ''} · ${timeAgo(f.saved_at)}</div>
+      <div class="fav-post-meta muted">${esc(f.author || '')} · ${timeAgo(f.created_at)}</div>
       <div class="note-actions"><button class="btn btn-ghost btn-sm" data-act="go">Открыть</button><button class="btn btn-ghost btn-sm" data-act="del">Удалить</button></div>`;
     el.querySelector('[data-act="go"]').addEventListener('click', () => go('/profile/' + (f.author_uid || 'me')));
-  } else {
+  } else if (f.type === 'video') {
     el.innerHTML = `
       <div style="display:flex;gap:12px;align-items:center">
         <img src="${mediaUrl(f.thumb)}" style="width:80px;border-radius:8px;object-fit:cover" alt="">
         <div style="flex:1">
-          <div class="fav-post-text">${esc(f.title)}</div>
-          <div class="fav-post-meta muted">${f.author || ''} · ${timeAgo(f.saved_at)}</div>
+          <div class="fav-post-text">${esc(f.title || '')}</div>
+          <div class="fav-post-meta muted">${esc(f.author || '')} · ${timeAgo(f.created_at)}</div>
         </div>
       </div>
       <div class="note-actions"><button class="btn btn-ghost btn-sm" data-act="go">Смотреть</button><button class="btn btn-ghost btn-sm" data-act="del">Удалить</button></div>`;
     el.querySelector('[data-act="go"]').addEventListener('click', () => go('/watch/' + f.uid));
+  } else {
+    el.innerHTML = `
+      <div style="display:flex;gap:12px;align-items:center">
+        <img src="${mediaUrl(f.avatar)}" style="width:48px;height:48px;border-radius:50%;object-fit:cover" alt="">
+        <div style="flex:1">
+          <div class="fav-post-text">${esc(f.name || f.username || '')}</div>
+          <div class="fav-post-meta muted">@${esc(f.username || '')} · ${timeAgo(f.created_at)}</div>
+        </div>
+      </div>
+      <div class="note-actions"><button class="btn btn-ghost btn-sm" data-act="go">Открыть</button><button class="btn btn-ghost btn-sm" data-act="del">Удалить</button></div>`;
+    el.querySelector('[data-act="go"]').addEventListener('click', () => go('/profile/' + f.uid));
   }
-  el.querySelector('[data-act="del"]').addEventListener('click', () => {
-    LS.save(LS.favKey(), LS.load(LS.favKey()).filter((x) => x.id !== f.id));
-    viewFavorites(); toast('Удалено из избранного');
+  el.querySelector('[data-act="del"]').addEventListener('click', async () => {
+    try { await api('/favorites/' + f.id, { method: 'DELETE' }); if (favMap) delete favMap[f.item_type + ':' + f.item_id]; viewFavorites(); toast('Удалено из избранного'); }
+    catch (err) { toast(err.message, 'error'); }
   });
   return el;
 }
@@ -3674,7 +3751,7 @@ function viewAbout() {
     <div class="page-title" style="margin:0 0 16px"><span class="screen-ico" data-ico="info"></span>О приложении</div>
     <div class="card" style="padding:20px">
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
-        <div class="app-badge" data-ico="shield"></div>
+        <div class="app-badge" data-ico="fire"></div>
         <div><div style="font-weight:800;font-size:18px;color:var(--mchs)">РЕСКА</div><div class="muted" style="font-size:13px">Социальная сеть МЧС России</div></div>
       </div>
       <p class="muted" style="font-size:13.5px;line-height:1.6">«Оперативный пост» — защищённая российская социальная платформа: лента, видео, группы, зашифрованные чаты и звонки через TURN-релей.</p>

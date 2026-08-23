@@ -20,7 +20,7 @@
   <!-- ============ ЭКРАН ЗАГРУЗКИ ============ -->
   <div id="splash">
       <div class="splash-inner">
-        <div class="auth-logo"><span class="logo-star" data-ico="shield"></span>РЕСКА</div>
+        <div class="auth-logo"><span class="logo-star" data-ico="fire"></span>РЕСКА</div>
       <div class="splash-spinner"></div>
       <div class="splash-status" id="splash-status">Загрузка…</div>
       <button class="btn btn-primary hidden" id="splash-retry">Повторить</button>
@@ -34,7 +34,7 @@
   <div id="auth-screen" class="hidden">
     <div class="auth-bg"></div>
       <div class="auth-card glass">
-        <div class="auth-logo"><span class="logo-star" data-ico="shield"></span>РЕСКА</div>
+        <div class="auth-logo"><span class="logo-star" data-ico="fire"></span>РЕСКА</div>
       <p class="auth-sub">Сообщество. Видео. Клипы. Чат.</p>
       <div class="tabs">
         <button class="tab active" data-tab="login">Вход</button>
@@ -112,7 +112,7 @@
     <!-- ===== ЛЕВЫЙ САЙДБАР ===== -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-top">
-        <a class="sidebar-logo" href="#/feed"><span class="logo-star" data-ico="shield"></span>РЕСКА</a>
+        <a class="sidebar-logo" href="#/feed"><span class="logo-star" data-ico="fire"></span>РЕСКА</a>
         <div class="sidebar-stripe"></div>
         <nav class="sidebar-nav">
           <a href="#/feed" data-nav="feed" class="slink">
@@ -247,6 +247,9 @@
         <button class="pact" data-action="share">
           <span class="pact-ico" data-ico="share"></span><span>Поделиться</span>
         </button>
+        <button class="pact" data-action="fav" title="В избранное">
+          <span class="pact-ico" data-ico="star"></span>
+        </button>
       </div>
       <div class="post-reactions"></div>
       <div class="comments-wrap hidden">
@@ -268,6 +271,7 @@
         <span class="video-thumb-play" data-ico="play"></span>
         <span class="views-badge" data-ico="eye"> 0</span>
         <span class="clip-badge hidden">КЛИП</span>
+        <button class="video-fav" data-action="fav" title="В избранное" data-ico="star"></button>
         <button class="video-del hidden" data-action="video-del" title="Удалить" data-ico="close"></button>
       </div>
       <div class="video-info">
@@ -299,6 +303,7 @@
         <button class="clip-act" data-action="like"><span class="clip-act-ico" data-ico="heart"></span><span class="clip-like-count">0</span></button>
         <button class="clip-act" data-action="toggle-comments"><span class="clip-act-ico" data-ico="comment"></span><span class="clip-comment-count">0</span></button>
         <button class="clip-act" data-action="share"><span class="clip-act-ico" data-ico="share"></span></button>
+        <button class="clip-act" data-action="fav" title="В избранное"><span class="clip-act-ico" data-ico="star"></span></button>
         <button class="clip-act clip-del hidden" data-action="delete" title="Удалить"><span class="clip-act-ico" data-ico="close"></span></button>
       </div>
       <div class="clip-info">
