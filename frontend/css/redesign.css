@@ -450,6 +450,9 @@ body {
   --panel: #ffffff;
   --panel2: #f5f8fc;
   --panel3: #e9eef6;
+  --card: #ffffff;
+  --card2: #f4f7fc;
+  --card3: #eaeff7;
   --border: rgba(255, 106, 0, 0.30);
   --border-soft: rgba(20, 40, 80, 0.10);
   --border-strong: rgba(255, 106, 0, 0.55);
@@ -457,11 +460,30 @@ body {
   --mchs2: #ff8c1a;
   --blue: #15407e;
   --blue2: #2f7bd9;
+  --primary: #2f7bd9;
+  --primary2: #1f5fb5;
+  --accent: #F68121;
+  --danger: #fb7185;
   --text: #16202e;
   --muted: #5b6878;
   --shadow: 0 12px 34px rgba(20, 40, 80, 0.14);
   --shadow-sm: 0 6px 18px rgba(20, 40, 80, 0.10);
 }
+
+/* элементы с прямыми тёмными хардкодами — явно перекрашиваем в светлой теме */
+[data-theme="light"] .modal-backdrop { background: rgba(20, 40, 80, 0.32); }
+[data-theme="light"] .auth-sub { color: var(--muted); }
+[data-theme="light"] .card,
+[data-theme="light"] .post,
+[data-theme="light"] .video-card,
+[data-theme="light"] .dropdown,
+[data-theme="light"] .fab-menu a { color: var(--text); }
+[data-theme="light"] .dropdown { border-color: var(--border-soft); }
+[data-theme="light"] .btn-ghost { background: transparent; }
+[data-theme="light"] .post-media,
+[data-theme="light"] .video-thumb { background: #d7deea; }
+[data-theme="light"] .icon-btn,
+[data-theme="light"] .pact { color: var(--muted); }
 [data-theme="light"] body {
   background-color: var(--bg);
   background-image:

@@ -14,11 +14,11 @@ const esc = (s) =>
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
-/* Хэштеги: #слово → ссылка на поиск (#/search?q=слово) */
+/* Хэштеги: #слово → ссылка на поиск (#/search?q=#слово) */
 function linkifyTags(text) {
   return esc(text).replace(
-    /(^|\s)#([\p{L}\p{N}_]+)/gu,
-    '$1<a class="tag" href="#/search?q=$2">#$2</a>'
+    /(^|\s)#([\p{L}\p{N}_-]+)/gu,
+    '$1<a class="hashtag" href="#/search?q=%23$2">#$2</a>'
   );
 }
 
@@ -2759,7 +2759,7 @@ async function viewProfile(id) {
             <span class="role-badge ${u.role}">${u.role === 'admin' ? 'АДМИН' : 'УЧАСТНИК'}</span>
           </div>
           <div class="profile-handle">@${esc(u.username)}</div>
-          <div class="profile-rank">${u.role === 'admin' ? 'СТАРШИЙ ОПЕРАТИВНЫЙ ДЕЖУРНЫЙ' : 'УЧАСТНИК ОПЕРАТИВНОГО ПОСТА'}</div>
+          <div class="profile-rank"${isMe ? ' data-rank-edit="1"' : ''}>${esc(u.status || (u.role === 'admin' ? 'Старший оперативный дежурный' : 'Участник оперативного поста'))}</div>
           ${!isMe && aliases.get(u.uid) ? `<div class="profile-bio muted">${esc(u.name)}</div>` : ''}
           <p class="profile-bio">${esc(u.bio || '')}</p>
           ${u.phone ? `<p class="profile-bio"><a class="phone-link" href="${esc(phoneHref)}"><span class="bn-ico" data-ico="phone"></span> ${esc(u.phone)}</a></p>` : ''}
@@ -2803,12 +2803,21 @@ async function viewProfile(id) {
       try {
         const res = await api(`/users/${u.uid}/cover`, { method: 'POST', body: fd });
         me.cover = res.user.cover;
-        const coverEl = view.querySelector('.profile-cover');
-        coverEl.style.backgroundImage = `url('${mediaUrl(res.user.cover)}')`;
+        const url = `url('${mediaUrl(res.user.cover)}')`;
+        let imgEl = view.querySelector('.profile-cover-img');
+        if (!imgEl) {
+          imgEl = document.createElement('div');
+          imgEl.className = 'profile-cover-img';
+          view.querySelector('.profile-cover').prepend(imgEl);
+        }
+        imgEl.style.backgroundImage = url;
         toast('Обложка обновлена');
       } catch (err) { toast(err.message, 'error'); }
     });
   }
+
+  const rankEl = view.querySelector('[data-rank-edit]');
+  if (rankEl) rankEl.addEventListener('click', () => go('/edit-profile'));
 
   view.querySelector('.profile-tabs-nav').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-ptab]');
@@ -4031,6 +4040,15 @@ function wireGlobal() {
   document.addEventListener('click', () => $('#user-menu').classList.add('hidden'));
   $('#user-menu').addEventListener('click', (e) => { if (e.target.closest('[data-action="logout"]')) { e.preventDefault(); logout(); } });
   $('#new-post-btn').addEventListener('click', openNewPostModal);
+
+  /* клик по хэштегу → поиск (делегирование, без двойного перехода) */
+  document.addEventListener('click', (e) => {
+    const tag = e.target.closest('.hashtag');
+    if (!tag) return;
+    e.preventDefault();
+    const href = tag.getAttribute('href') || '';
+    go(href.replace(/^#/, ''));
+  });
 
   const fabMain = $('#fab-main');
   const fabMenu = $('#fab-menu');

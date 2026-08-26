@@ -387,6 +387,7 @@ function migrate() {
   addColumn('users', 'phone', 'TEXT DEFAULT \'\'');
   addColumn('users', 'phone_hash', 'TEXT DEFAULT \'\'');
   addColumn('users', 'cover', 'TEXT DEFAULT \'\'');
+  addColumn('users', 'status', 'TEXT DEFAULT \'\'');
   addColumn('posts', 'uid', 'TEXT');
   addColumn('posts', 'repost_of', 'INTEGER');
   addColumn('videos', 'uid', 'TEXT');

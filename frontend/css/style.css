@@ -896,8 +896,8 @@ textarea { resize: vertical; }
 .fav-post-meta { font-size: 12px; margin-top: 6px; }
 
 /* ---------- хэштеги и телефон ---------- */
-.tag { color: var(--primary); font-weight: 600; text-decoration: none; }
-.tag:hover { text-decoration: underline; }
+.tag, .hashtag { color: var(--accent); font-weight: 600; text-decoration: none; }
+.tag:hover, .hashtag:hover { text-decoration: underline; }
 .phone-link { color: var(--primary); text-decoration: none; font-weight: 600; }
 .phone-link:hover { text-decoration: underline; }
 
