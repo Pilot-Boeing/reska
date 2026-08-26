@@ -601,7 +601,7 @@ html[data-device="desktop"] .view { max-width: 1040px; padding: 26px 24px; }
 /* Телефон: мобильная навигация видна, сайдбар скрыт (открывается бургером) */
 html[data-device="mobile"] .mobilenav { display: flex !important; }
 html[data-device="mobile"] .menu-toggle { display: block !important; }
-html[data-device="mobile"] .sidebar { position: fixed; top: 0; bottom: 0; left: 0; width: var(--sidebar-w); transform: translateX(-100%); transition: transform .25s ease; z-index: 120; }
+html[data-device="mobile"] .sidebar { position: fixed; top: 0; bottom: 0; left: 0; width: min(86vw, 320px); transform: translateX(-100%); transition: transform .25s ease; z-index: 120; }
 html[data-device="mobile"] .sidebar.open { transform: translateX(0); }
 html[data-device="mobile"] .main { margin-left: 0; }
 html[data-device="mobile"] .view { padding: 14px 12px 92px; }
