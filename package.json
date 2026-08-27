@@ -14,10 +14,6 @@
     "node": ">=22.5.0"
   },
   "dependencies": {
-    "@capacitor/android": "^8.5.0",
-    "@capacitor/core": "^8.5.0",
-    "@capacitor/ios": "^8.5.0",
-    "@capacitor/push-notifications": "^8.1.2",
     "bcryptjs": "^2.4.3",
     "express": "^4.19.2",
     "multer": "^2.2.0",
@@ -25,7 +21,11 @@
     "socket.io": "^4.7.5"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.0",
     "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
+    "@capacitor/push-notifications": "^8.1.2",
     "socket.io-client": "^4.7.5"
   }
 }
