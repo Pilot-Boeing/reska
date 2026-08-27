@@ -4,7 +4,7 @@ const http = require('http');
 const https = require('https');
 const express = require('express');
 const { Server } = require('socket.io');
-const { db, UPLOAD_DIR } = require('./db');
+const { db, UPLOAD_DIR, DB_PATH } = require('./db');
 const { optionalAuth, csrfProtect, ensureCsrfCookie, parseCookies } = require('./helpers');
 const { limiter } = require('./rateLimit');
 const { ipHash, uaHash } = require('./security');
@@ -273,6 +273,18 @@ async function start() {
   } catch (e) {
     console.error('Ошибка первого бэкапа:', e.message);
   }
+}
+
+/* ---------- Авто-бэкап БД в GitHub (Render без карты) ---------- */
+if (process.env.GITHUB_TOKEN) {
+  const { uploadDbFrom } = require('./db-github-backup');
+  const INTERVAL = (Number(process.env.GITHUB_BACKUP_MIN) > 0 ? Number(process.env.GITHUB_BACKUP_MIN) : 10) * 60 * 1000;
+  setInterval(() => { uploadDbFrom(DB_PATH).catch(() => {}); }, INTERVAL);
+  process.on('SIGTERM', () => {
+    console.log('[backup] SIGTERM — выгружаю БД в GitHub...');
+    uploadDbFrom(DB_PATH).catch(() => {}).finally(() => process.exit(0));
+  });
+  console.log('[backup] Авто-бэкап БД в GitHub включён (интервал', INTERVAL / 60000, 'мин)');
 }
 
   process.on('uncaughtException', (err) => {

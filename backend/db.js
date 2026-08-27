@@ -53,6 +53,10 @@ const VIDEO_DIR = path.join(UPLOAD_DIR, 'videos');
 const THUMB_DIR = path.join(UPLOAD_DIR, 'thumbs');
 const CHAT_DIR = path.join(UPLOAD_DIR, 'chats');
 
+const { restoreDbSync } = require('./db-github-backup');
+// Восстановить БД из GitHub-бэкапа, если локального файла нет (Render: эфемерный диск).
+restoreDbSync(DB_PATH);
+
 const db = new DatabaseSync(DB_PATH);
 db.exec('PRAGMA journal_mode = WAL;');
 db.exec('PRAGMA foreign_keys = ON;');
