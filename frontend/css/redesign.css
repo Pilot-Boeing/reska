@@ -193,9 +193,10 @@ body {
   padding: 9px 12px; border-radius: 8px; margin: 8px 0; font-size: 14px; color: #cfd9e8;
 }
 .post-actions {
-  display: flex; align-items: center; gap: 4px; margin-top: 6px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 6px;
   border-top: 1px solid var(--border-soft); padding-top: 8px;
 }
+.pact { flex: 0 0 auto; }
 .pact {
   display: inline-flex; align-items: center; gap: 6px;
   background: transparent; border: none; cursor: pointer;
@@ -305,6 +306,7 @@ body {
   border-radius: 999px; min-width: 18px; height: 18px; display: inline-flex;
   align-items: center; justify-content: center; padding: 0 5px;
   box-shadow: 0 0 12px rgba(255,106,0,.5);
+  pointer-events: none;
 }
 
 .msg { display: flex; flex-direction: column; margin: 8px 0; max-width: 78%; }

@@ -82,14 +82,12 @@ function getSessionUser(req) {
   }
   const b = bindings(req);
   if (row._ip && row._ip !== b.ip) {
-    db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+    db.prepare('UPDATE sessions SET ip_hash = ? WHERE token = ?').run(b.ip, token);
     alert('session_ip_change', { req, meta: { userId: row.id } });
-    return null;
   }
   if (row._ua && row._ua !== b.ua) {
-    db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+    db.prepare('UPDATE sessions SET ua_hash = ? WHERE token = ?').run(b.ua, token);
     alert('session_ua_change', { req, meta: { userId: row.id } });
-    return null;
   }
   return row;
 }

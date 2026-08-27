@@ -222,8 +222,12 @@ io.use((socket, next) => {
   if (!row) return next(new Error('unauthorized'));
   const ip = ipHash(socket.request);
   const ua = uaHash(socket.request);
-  if (row.ip_hash && row.ip_hash !== ip) return next(new Error('binding_ip'));
-  if (row.ua_hash && row.ua_hash !== ua) return next(new Error('binding_ua'));
+  if (row.ip_hash && row.ip_hash !== ip) {
+    db.prepare('UPDATE sessions SET ip_hash = ? WHERE token = ?').run(ip, String(token));
+  }
+  if (row.ua_hash && row.ua_hash !== ua) {
+    db.prepare('UPDATE sessions SET ua_hash = ? WHERE token = ?').run(ua, String(token));
+  }
   socket.userId = row.user_id;
   next();
 });
@@ -271,4 +275,14 @@ async function start() {
   }
 }
 
-start();
+  process.on('uncaughtException', (err) => {
+    console.error('Необработанное исключение (процесс не завершён):', err);
+  });
+  process.on('unhandledRejection', (err) => {
+    console.error('Необработанный rejection (процесс не завершён):', err);
+  });
+
+  start().catch((err) => {
+    console.error('Ошибка запуска сервера:', err);
+    process.exit(1);
+  });

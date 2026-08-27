@@ -400,11 +400,18 @@ async function render() {
 }
 
 /* FAB показываем только там, где уместно создавать контент */
+function hideFab() {
+  const fab = $('#fab-main');
+  const menu = $('#fab-menu');
+  if (fab) fab.style.display = 'none';
+  if (menu) menu.classList.add('hidden');
+}
+
 function updateFab(route) {
   const fab = $('#fab-main');
   const menu = $('#fab-menu');
   if (!fab) return;
-  const show = ['feed', 'videos', 'search'].includes(route);
+  const show = ['feed', 'videos', 'clips', 'profile'].includes(route);
   fab.style.display = show ? '' : 'none';
   if (!show) menu.classList.add('hidden');
 }
@@ -412,10 +419,11 @@ function updateFab(route) {
 function setActiveNav(route) {
   const map = {
     feed: 'feed', videos: 'videos', clips: 'clips', watch: 'videos',
-    messages: 'messages', notes: 'notes', favorites: 'favorites', groups: 'groups',
-    search: 'search', friends: 'friends', notifications: 'notifications'
+    messages: 'messages', notes: null, favorites: null, groups: null,
+    search: null, friends: 'friends', notifications: 'notifications',
+    settings: null, profile: 'profile', edit: null, security: null
   };
-  const key = map[route] || (route === 'profile' ? 'profile' : 'feed');
+  const key = map.hasOwnProperty(route) ? map[route] : (route === 'profile' ? 'profile' : 'feed');
   $$('.slink, .mobilenav a').forEach((a) => a.classList.toggle('active', a.dataset.nav === key));
 }
 
@@ -463,7 +471,7 @@ async function afterLogin() {
   connectSocket();
   await Promise.all([loadAliases(), loadNotifBadge()]);
   const h = location.hash;
-  if (!h || h === '#' || h === '#/' || h === '#/clips') location.hash = '#/feed';
+  if (!h || h === '#' || h === '#/') location.hash = '#/feed';
   else render();
 }
 
@@ -1027,12 +1035,13 @@ function wirePostEvents(feed) {
     }
 
     if (action === 'share') {
-      const authorHref = $('.post-avatar-link', root).href;
+      const authorHref = $('.post-author', root).getAttribute('href') || ('#/profile/' + (root.dataset.uid || ''));
       shareLink(authorHref, 'Поделиться профилем');
     }
 
     if (action === 'fav') {
-      await toggleFav('post', root.dataset.uid, actionBtn);
+      const id = root.dataset.id || root.dataset.uid;
+      await toggleFav('post', id, actionBtn);
     }
 
     if (action === 'repost') {
@@ -1633,6 +1642,7 @@ async function openVideoOverlay(id) {
 }
 
 async function viewWatch(id) {
+  hideFab();
   if (!id) return go('/videos');
   await openVideoOverlay(id);
 }
@@ -1696,6 +1706,7 @@ function viewVideoForm(isClip) {
    МЕССЕНДЖЕР (E2EE)
    ========================================================= */
 async function viewMessages(openChatUid) {
+  hideFab();
   const data = await api('/chats');
   chatsCache = data.chats;
   const total = chatsCache.reduce((s, c) => s + (c.unread || 0), 0);
@@ -2772,6 +2783,7 @@ async function viewProfile(id) {
           <div class="profile-actions">
             ${isMe
               ? `<button class="btn btn-ghost" data-action="edit-profile"><span class="bn-ico" data-ico="settings"></span>Редактировать</button>
+                 <button class="btn btn-ghost" data-action="open-settings"><span class="bn-ico" data-ico="settings"></span>Настройки</button>
                  <button class="btn btn-ghost" data-action="logout" style="color:var(--danger);border-color:var(--danger)"><span class="bn-ico" data-ico="logout"></span>Выйти</button>`
               : `<button class="btn ${data.isFollowing ? 'btn-ghost' : 'btn-primary'}" data-action="follow" data-state="${data.isFollowing ? '1' : '0'}">
                    ${data.isFollowing ? '✓ Вы подписаны' : '＋ Подписаться'}</button>
@@ -2834,6 +2846,7 @@ async function viewProfile(id) {
     if (!btn) return;
     const act = btn.dataset.action;
     if (act === 'edit-profile') go('/edit-profile');
+    if (act === 'open-settings') go('/settings');
     if (act === 'logout') {
       if (confirm('Выйти из аккаунта?')) logout();
     }
@@ -2936,6 +2949,7 @@ async function viewProfile(id) {
 }
 
 function viewEditProfile() {
+  hideFab();
   const view = $('#view');
   view.innerHTML = `
     <div class="form-card card">
@@ -3264,6 +3278,7 @@ function initContacts(view) {
 }
 
 function openNewPostModal() {
+  hideFab();
   const modal = document.createElement('div');
   modal.className = 'modal-backdrop';
   modal.innerHTML = `
@@ -3728,6 +3743,7 @@ async function viewNotifSettings() {
 
 /* ---------- НАСТРОЙКИ (главный экран) ---------- */
 async function viewSettings() {
+  hideFab();
   const view = $('#view');
   const cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
   view.innerHTML = `

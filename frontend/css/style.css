@@ -402,7 +402,7 @@ textarea { resize: vertical; }
    ========================================================= */
 .feed { display: flex; flex-direction: column; gap: 18px; max-width: 640px; margin: 0 auto; width: 100%; }
 
-.post { padding: 0; overflow: hidden; }
+.post { padding: 0; overflow: visible; }
 .post-head { display: flex; align-items: center; gap: 12px; padding: 16px 18px 0; }
 .post-avatar-link img { width: 46px; height: 46px; }
 .post-meta { flex: 1; min-width: 0; }
@@ -418,7 +418,8 @@ textarea { resize: vertical; }
   background: #000;
 }
 
-.post-actions { display: flex; gap: 6px; padding: 14px 18px; }
+.post-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 14px 18px; }
+.pact { flex: 0 0 auto; }
 .pact {
   display: flex; align-items: center; gap: 6px;
   background: var(--card2);
