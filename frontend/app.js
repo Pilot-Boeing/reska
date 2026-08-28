@@ -4192,7 +4192,7 @@ function applyTheme(t) {
 }
 function setupTheme() {
   let t = 'dark';
-  try { t = localStorage.getItem('reska-theme') || 'dark'; } catch (e) {}
+  try { t = localStorage.getItem('reska-theme') || 'light'; } catch (e) {}
   applyTheme(t);
   const btn = document.getElementById('theme-toggle');
   if (btn) btn.addEventListener('click', () => {
