@@ -278,13 +278,16 @@ async function start() {
 /* ---------- Авто-бэкап БД в GitHub (Render без карты) ---------- */
 if (process.env.GITHUB_TOKEN) {
   const { uploadDbFrom } = require('./db-github-backup');
-  const INTERVAL = (Number(process.env.GITHUB_BACKUP_MIN) > 0 ? Number(process.env.GITHUB_BACKUP_MIN) : 10) * 60 * 1000;
+  const INTERVAL = (Number(process.env.GITHUB_BACKUP_MIN) > 0 ? Number(process.env.GITHUB_BACKUP_MIN) : 5) * 60 * 1000;
+  // Первая выгрузка сразу после старта, чтобы бэкап появился в GitHub как можно раньше
+  // (например, при первом деплое, когда в репо ещё нет файла).
+  setTimeout(() => { uploadDbFrom(DB_PATH).catch(() => {}); }, 5000);
   setInterval(() => { uploadDbFrom(DB_PATH).catch(() => {}); }, INTERVAL);
   process.on('SIGTERM', () => {
     console.log('[backup] SIGTERM — выгружаю БД в GitHub...');
     uploadDbFrom(DB_PATH).catch(() => {}).finally(() => process.exit(0));
   });
-  console.log('[backup] Авто-бэкап БД в GitHub включён (интервал', INTERVAL / 60000, 'мин)');
+  console.log('[backup] Авто-бэкап БД в GitHub включён (первая выгрузка +5с, далее каждые', INTERVAL / 60000, 'мин)');
 }
 
   process.on('uncaughtException', (err) => {
