@@ -2,7 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const { db, UPLOAD_DIR } = require('../db');
-const { auth, publicUser, findByIdOrUid } = require('../helpers');
+const { auth, findByIdOrUid } = require('../helpers');
 const { sanitizeText } = require('../validate');
 const { randomUid } = require('../security');
 const { log } = require('../logger');
@@ -39,7 +39,7 @@ router.get('/', auth, (req, res) => {
   const rows = db
     .prepare(
       `SELECT c.id, c.uid, c.kind, c.group_id, c.user_a, c.created_at,
-              u.id AS other_id, u.username, u.name, u.avatar,
+              u.id AS other_id, u.uid AS other_uid, u.username, u.name, u.avatar,
               g.name AS group_name, g.description AS group_description,
               (SELECT COUNT(*) FROM chat_members cm WHERE cm.chat_id = c.id) AS member_count,
               (SELECT CASE
@@ -84,7 +84,12 @@ router.get('/', auth, (req, res) => {
           is_owner: r.user_a === me
         };
       }
-      return { ...base, other: publicUser(r), online: !!(onlineUsers && onlineUsers.has(r.other_id)), muted: !!db.prepare('SELECT 1 FROM muted_chats WHERE user_id = ? AND chat_id = ?').get(me, r.id) };
+      return {
+        ...base,
+        other: { id: r.other_id, uid: r.other_uid, username: r.username, name: r.name, avatar: r.avatar },
+        online: !!(onlineUsers && onlineUsers.has(r.other_id)),
+        muted: !!db.prepare('SELECT 1 FROM muted_chats WHERE user_id = ? AND chat_id = ?').get(me, r.id)
+      };
     })
   });
 });
@@ -264,7 +269,12 @@ router.post('/:id/messages', auth, (req, res, next) => {
 });
 
 function mediaTypeFromMime(mime, kind) {
-  if (kind === 'round') return 'round';
+  const k = String(kind || '').toLowerCase();
+  if (k === 'round') return 'round';
+  if (k === 'image') return 'image';
+  if (k === 'video') return 'video';
+  if (k === 'audio') return 'audio';
+  if (k === 'file') return 'file';
   const m = String(mime || '').toLowerCase();
   if (m.startsWith('image/')) return 'image';
   if (m.startsWith('video/')) return 'video';

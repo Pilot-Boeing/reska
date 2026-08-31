@@ -794,6 +794,17 @@ textarea { resize: vertical; }
   color: var(--text); font-size: 13px; text-decoration: none; word-break: break-all;
 }
 .msg-media-file:hover { border-color: var(--primary); background: rgba(47,123,217,0.25); }
+.msg-media-wrap { position: relative; display: inline-block; max-width: 100%; }
+.msg-media-wrap img, .msg-media-wrap video { display: block; }
+.msg-media-dl {
+  position: absolute; top: 8px; right: 8px;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: rgba(0,0,0,0.5); color: #fff; text-decoration: none;
+  display: flex; align-items: center; justify-content: center; font-size: 15px;
+  opacity: 0; transition: opacity 0.15s; z-index: 2;
+}
+.msg-media-wrap:hover .msg-media-dl, .msg-media-wrap.actions-open .msg-media-dl { opacity: 1; }
+@media (hover: none) { .msg-media-dl { opacity: 1; } }
 .msg-caption { margin-top: 2px; white-space: pre-wrap; word-break: break-word; }
 .msg-caption.e2ee { font-style: italic; }
 

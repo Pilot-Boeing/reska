@@ -16,6 +16,7 @@
   --border-strong: rgba(255, 106, 0, 0.55);
   --mchs: #FF6A00;
   --mchs2: #ff9a3c;
+  --mchs-soft: rgba(255, 106, 0, 0.15);
   --blue: #15407e;
   --blue2: #2f7bd9;
   --alert: #ff3b30;
@@ -460,6 +461,7 @@ body {
   --border-strong: rgba(255, 106, 0, 0.55);
   --mchs: #ff6a00;
   --mchs2: #ff8c1a;
+  --mchs-soft: rgba(255, 106, 0, 0.10);
   --blue: #15407e;
   --blue2: #2f7bd9;
   --primary: #2f7bd9;
@@ -525,6 +527,15 @@ body {
 [data-theme="light"] .field select { background: #fff; color: var(--text); }
 [data-theme="light"] .splash { background: var(--bg); }
 [data-theme="light"] .search { background: #fff; }
+
+/* активный пункт сайдбара — белый текст был невидим на светлом фоне */
+[data-theme="light"] .slink.active { color: var(--text); background: linear-gradient(120deg, rgba(47, 123, 217, 0.16), rgba(31, 95, 181, 0.06)); }
+/* осветляем тёмные оверлеи/кольца в светлой теме */
+[data-theme="light"] .sidebar-backdrop { background: rgba(20, 40, 80, 0.25); }
+[data-theme="light"] .profile-avatar { box-shadow: 0 0 0 4px #fff, 0 0 26px rgba(255, 106, 0, 0.25); }
+[data-theme="light"] .profile-cover .cover-edit { background: rgba(20, 40, 80, 0.45); color: #fff; }
+[data-theme="light"] .net-banner.server { background: #b08a4a; color: #1a1206; }
+[data-theme="light"] .views-badge { background: rgba(20, 40, 80, 0.55); color: #fff; }
 
 /* кнопка переключателя темы */
 .theme-toggle {

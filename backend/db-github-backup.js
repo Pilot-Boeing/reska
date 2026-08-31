@@ -75,10 +75,12 @@ async function uploadDbFrom(localPath) {
       });
       if (getRes.ok) { const j = await getRes.json(); if (j && j.sha) sha = j.sha; }
     } catch (_) { /* файл может отсутствовать */ }
+    const putBody = { message: 'db backup (auto)', content };
+    if (sha) putBody.sha = sha;
     const putRes = await fetch(url, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${c.token}`, 'User-Agent': 'reska', 'Content-Type': 'application/json', Accept: 'application/vnd.github+json' },
-      body: JSON.stringify({ message: 'db backup (auto)', content }),
+      body: JSON.stringify(putBody),
     });
     if (!putRes.ok) {
       const t = await putRes.text();

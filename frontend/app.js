@@ -1362,13 +1362,6 @@ async function viewClipsReel(videos) {
       $('.clip-mute', clip).classList.toggle('unmuted', !vid.muted);
     });
 
-    $('.clip-follow', clip).addEventListener('click', (e) => {
-      e.preventDefault();
-      const btn = e.currentTarget;
-      btn.classList.toggle('followed');
-      btn.textContent = btn.classList.contains('followed') ? '✓ Подписка' : 'Подписаться';
-    });
-
     $('.clip-sound-text', clip).parentElement?.addEventListener('click', () => {
       const st = $('.clip-sound-text', clip);
       st.style.animationPlayState = st.style.animationPlayState === 'paused' ? 'running' : 'paused';
@@ -1506,6 +1499,20 @@ function buildClipCard(v) {
       const feed = $('.clips-feed');
       if (feed && !feed.querySelector('.clip')) go('/clips');
     } catch (err) { toast(err.message, 'error'); }
+  });
+
+  const followBtn = $('.clip-follow', node);
+  if (v.author_uid === me.uid) followBtn.classList.add('hidden');
+  followBtn.addEventListener('click', async (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (!v.author_uid) return;
+    const was = followBtn.classList.contains('followed');
+    if (!was) { followBtn.classList.add('followed'); followBtn.textContent = '✓ Подписка'; }
+    try {
+      const res = await api(`/users/${v.author_uid}/follow`, { method: was ? 'DELETE' : 'POST' });
+      followBtn.classList.toggle('followed', !!res.isFollowing);
+      followBtn.textContent = res.isFollowing ? '✓ Подписка' : 'Подписаться';
+    } catch (err) { followBtn.classList.toggle('followed', was); followBtn.textContent = was ? '✓ Подписка' : 'Подписаться'; toast(err.message, 'error'); }
   });
 
   return node;
@@ -1749,7 +1756,7 @@ function renderChatList() {
   }
   chatsCache.forEach((c) => {
     const isGroup = c.kind === 'group';
-    const isSelf = !isGroup && c.other && c.other.id === me.id;
+    const isSelf = !isGroup && c.other && String(c.other.id) === String(me.id);
     const name = isGroup ? c.name : (isSelf ? '📝 Сообщения себе' : displayName(c.other));
     const last = isGroup
       ? (c.last_text || 'Группа создана')
@@ -1812,7 +1819,7 @@ async function openChat(chatUid) {
   const data = await api(`/chats/${chatUid}/messages`);
   const chat = activeChat;
   const isGroup = !!(chat && chat.kind === 'group');
-  const isSelf = !!(chat && !isGroup && chat.other && chat.other.id === me.id);
+  const isSelf = !!(chat && !isGroup && chat.other && String(chat.other.id) === String(me.id));
   const view = $('#view');
   let head = '';
   if (isGroup) {
@@ -2109,7 +2116,7 @@ async function openChat(chatUid) {
         fd = new FormData();
         if (text) fd.append('text', text);
         if (attach.duration) fd.append('duration', String(attach.duration));
-        if (attach.type === 'round') fd.append('kind', 'round');
+        if (attach.type) fd.append('kind', attach.type);
         fd.append('file', attach.file, attach.name);
         if (pub && text) {
           const enc = await E2EE.encrypt(text, pub);
@@ -2177,7 +2184,7 @@ function mediaNode(m) {
     img.src = url;
     img.alt = '';
     img.loading = 'lazy';
-    return img;
+    return withDownload(img, m, 'msg-media-img-wrap');
   }
   if (type === 'audio') {
     const audio = document.createElement('audio');
@@ -2185,7 +2192,7 @@ function mediaNode(m) {
     audio.src = url;
     audio.controls = true;
     audio.preload = 'metadata';
-    return audio;
+    return withDownload(audio, m, 'msg-media-audio-wrap');
   }
   if (type === 'round') {
     const wrap = document.createElement('div');
@@ -2214,7 +2221,7 @@ function mediaNode(m) {
     video.controls = true;
     video.playsInline = true;
     video.preload = 'metadata';
-    return video;
+    return withDownload(video, m, 'msg-media-video-wrap');
   }
   const a = document.createElement('a');
   a.className = 'msg-media-file';
@@ -2222,7 +2229,24 @@ function mediaNode(m) {
   a.textContent = '📎 ' + (m.media_name || 'Файл') + (m.media_size ? ' · ' + fmtSize(m.media_size) : '');
   a.target = '_blank';
   a.rel = 'noopener';
+  a.download = m.media_name || 'file';
   return a;
+}
+
+function withDownload(mediaEl, m, wrapClass) {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-media-wrap ' + wrapClass;
+  wrap.appendChild(mediaEl);
+  const dl = document.createElement('a');
+  dl.className = 'msg-media-dl';
+  dl.href = downloadMediaUrl(m);
+  dl.target = '_blank';
+  dl.rel = 'noopener';
+  dl.download = m.media_name || 'file';
+  dl.textContent = '⬇';
+  dl.title = 'Скачать';
+  wrap.appendChild(dl);
+  return wrap;
 }
 
 function captionNode(m) {

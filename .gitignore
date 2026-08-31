@@ -25,3 +25,5 @@ android/build/
 android/capacitor-cordova-android-plugins/build/
 android/local.properties
 android/app/src/main/assets/public/
+
+server.err

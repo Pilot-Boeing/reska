@@ -93,7 +93,7 @@ app.get('/api/media/*', (req, res) => {
   const isChat = rel.startsWith('chats/');
   const allowed = isChat
     ? /^chats\/\d+\/[A-Za-z0-9_.-]+$/.test(rel)
-    : /^(avatars|posts|videos|thumbs)\/[A-Za-z0-9_.-]+$/.test(rel);
+    : /^(avatars|covers|posts|videos|thumbs)\/[A-Za-z0-9_.-]+$/.test(rel);
   if (!allowed) {
     return res.status(403).json({ error: 'Доступ запрещён' });
   }
