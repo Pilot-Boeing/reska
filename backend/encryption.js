@@ -154,6 +154,59 @@ function readPlainWhole(filePath) {
   return readPlainRange(filePath, 0, total).buffer;
 }
 
+/**
+ * Потоковый читатель открытых данных [offset, offset+length).
+ * Читает по одному зашифрованному чанку за раз и отдаёт их декриптованными
+ * побайтово, не держа весь файл в памяти (защита от OOM на больших файлах).
+ */
+function createPlainReadable(filePath, offset, length) {
+  const { Readable } = require('stream');
+  const total = filePlainSize(filePath);
+  const start = Math.max(0, Math.min(offset, total));
+  const len = Math.max(0, Math.min(length, total - start));
+  const bytesEnd = start + len;
+
+  const { fileId } = fileHeader(filePath);
+  const fd = fs.openSync(filePath, 'r');
+  let chunkIndex = Math.floor(start / CHUNK);
+  let relStart = start - chunkIndex * CHUNK;
+  let remaining = len;
+
+  return new Readable({
+    read() {
+      try {
+        if (remaining <= 0 || bytesEnd <= 0) {
+          fs.closeSync(fd);
+          this.push(null);
+          return;
+        }
+        const onDiskPos = HEADER_SIZE + chunkIndex * ON_DISK_CHUNK;
+        const fileSize = fs.fstatSync(fd).size;
+        const chunkSize = Math.min(ON_DISK_CHUNK, fileSize - onDiskPos);
+        if (chunkSize <= 0) {
+          fs.closeSync(fd);
+          this.push(null);
+          return;
+        }
+        const enc = Buffer.alloc(chunkSize);
+        fs.readSync(fd, enc, 0, chunkSize, onDiskPos);
+        let plain = decryptChunk(fileId, chunkIndex, enc);
+        chunkIndex++;
+        if (relStart > 0) {
+          plain = plain.subarray(relStart);
+          relStart = 0;
+        }
+        if (plain.length > remaining) plain = plain.subarray(0, remaining);
+        remaining -= plain.length;
+        this.push(plain);
+      } catch (e) {
+        try { fs.closeSync(fd); } catch (e2) {}
+        this.destroy(e);
+      }
+    }
+  });
+}
+
 /* ---------- бэкапы: файл целиком ---------- */
 function encryptBuffer(buf) {
   const iv = crypto.randomBytes(12);
@@ -189,6 +242,7 @@ module.exports = {
   filePlainSize,
   readPlainRange,
   readPlainWhole,
+  createPlainReadable,
   encryptBuffer,
   decryptBuffer
 };

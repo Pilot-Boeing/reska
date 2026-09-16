@@ -7,13 +7,12 @@ const { Server } = require('socket.io');
 const { db, UPLOAD_DIR, DB_PATH } = require('./db');
 const { optionalAuth, csrfProtect, ensureCsrfCookie, parseCookies } = require('./helpers');
 const { limiter } = require('./rateLimit');
-const { ipHash, uaHash } = require('./security');
-const { readPlainRange, filePlainSize } = require('./encryption');
+const { createPlainReadable, filePlainSize } = require('./encryption');
 const { scheduleBackups } = require('./backup');
 const { ensureTls } = require('./tls');
 
 const app = express();
-app.set('trust proxy', false);
+app.set('trust proxy', 1);
 app.set('io', null);
 
 /* ---------- ограничение частоты запросов ---------- */
@@ -93,7 +92,7 @@ app.get('/api/media/*', (req, res) => {
   const isChat = rel.startsWith('chats/');
   const allowed = isChat
     ? /^chats\/\d+\/[A-Za-z0-9_.-]+$/.test(rel)
-    : /^(avatars|covers|posts|videos|thumbs)\/[A-Za-z0-9_.-]+$/.test(rel);
+    : /^(avatars|covers|posts|videos|thumbs|stories)\/[A-Za-z0-9_.-]+$/.test(rel);
   if (!allowed) {
     return res.status(403).json({ error: 'Доступ запрещён' });
   }
@@ -119,36 +118,55 @@ app.get('/api/media/*', (req, res) => {
   }
 
   const range = req.headers.range;
+  let start = 0;
+  let end = total - 1;
+  let status = 200;
   if (range) {
-    const m = /bytes=(\d*)-(\d*)/.exec(range);
-    let start = m && m[1] ? parseInt(m[1], 10) : 0;
-    let end = m && m[2] ? parseInt(m[2], 10) : total - 1;
-    if (!Number.isFinite(start) || start < 0) start = 0;
-    if (!Number.isFinite(end) || end < 0) end = total - 1;
+    const m = /^bytes=(\d*)-(\d*)$/.exec(String(range).trim());
+    if (!m || (m[1] === '' && m[2] === '')) {
+      return res.status(400).json({ error: 'Недопустимый Range' });
+    }
+    if (m[1] === '') {
+      const suffix = Number(m[2]);
+      if (!Number.isInteger(suffix) || suffix <= 0) {
+        return res.status(400).json({ error: 'Недопустимый Range' });
+      }
+      start = Math.max(0, total - suffix);
+      end = total - 1;
+    } else {
+      start = Number(m[1]);
+      end = m[2] === '' ? total - 1 : Number(m[2]);
+      if (!Number.isInteger(start) || start < 0) {
+        return res.status(400).json({ error: 'Недопустимый Range' });
+      }
+      if (!Number.isInteger(end) || end < start) {
+        return res.status(400).json({ error: 'Недопустимый Range' });
+      }
+    }
     if (start > end || start >= total) {
       res.set('Content-Range', `bytes */${total}`);
       return res.status(416).end();
     }
     end = Math.min(end, total - 1);
-    const { buffer } = readPlainRange(abs, start, end - start + 1);
-    res.status(206);
-    res.set({
-      'Content-Type': mime,
-      'Accept-Ranges': 'bytes',
-      'Content-Range': `bytes ${start}-${end}/${total}`,
-      'Content-Length': buffer.length,
-      'Cache-Control': cache
-    });
-    return res.end(buffer);
+    status = 206;
   }
-  const { buffer } = readPlainRange(abs, 0, total);
+
+  res.status(status);
   res.set({
     'Content-Type': mime,
     'Accept-Ranges': 'bytes',
-    'Content-Length': buffer.length,
+    'Content-Length': end - start + 1,
     'Cache-Control': cache
   });
-  res.end(buffer);
+  if (status === 206) res.set('Content-Range', `bytes ${start}-${end}/${total}`);
+  if (total === 0) return res.end();
+
+  const stream = createPlainReadable(abs, start, end - start + 1);
+  stream.on('error', () => {
+    if (!res.headersSent) res.status(500).end();
+    else res.destroy();
+  });
+  stream.pipe(res);
 });
 
 const BUILD_VER = (() => {
@@ -208,26 +226,19 @@ app.use((err, req, res, next) => {
   res.status(status).json({ error: message });
 });
 
-/* ---------- WebSocket (auth по токену сессии + привязка IP/UA) ---------- */
+/* ---------- WebSocket (auth по session-cookie из handshake, не по голому токену) ---------- */
 const httpServer = http.createServer(app);
 const io = new Server(httpServer);
 app.set('io', io);
 
 io.use((socket, next) => {
-  const token = socket.handshake.auth && socket.handshake.auth.token;
-  if (!token) return next(new Error('unauthorized'));
+  const session = parseCookies(socket.request).reska_session;
+  if (!session) return next(new Error('unauthorized'));
   const row = db
-    .prepare('SELECT user_id, ip_hash, ua_hash FROM sessions WHERE token = ?')
-    .get(String(token));
+    .prepare('SELECT user_id, expires_at FROM sessions WHERE token = ?')
+    .get(String(session));
   if (!row) return next(new Error('unauthorized'));
-  const ip = ipHash(socket.request);
-  const ua = uaHash(socket.request);
-  if (row.ip_hash && row.ip_hash !== ip) {
-    db.prepare('UPDATE sessions SET ip_hash = ? WHERE token = ?').run(ip, String(token));
-  }
-  if (row.ua_hash && row.ua_hash !== ua) {
-    db.prepare('UPDATE sessions SET ua_hash = ? WHERE token = ?').run(ua, String(token));
-  }
+  if (row.expires_at && new Date(row.expires_at) < new Date()) return next(new Error('unauthorized'));
   socket.userId = row.user_id;
   next();
 });

@@ -8,6 +8,7 @@ const { randomUid } = require('../security');
 const { log } = require('../logger');
 const { notify } = require('../notif');
 const { uploadChatMedia } = require('../upload');
+const { userLimiter } = require('../rateLimit');
 
 const router = express.Router();
 
@@ -197,7 +198,7 @@ router.get('/:id/messages', auth, (req, res) => {
   res.json({ messages: page.map((row) => messageWithMeta(row, req.userId)), hasMore, chatUid: chat.uid });
 });
 
-router.post('/:id/messages', auth, (req, res, next) => {
+router.post('/:id/messages', auth, userLimiter({ name: 'chat_message', max: 30, message: 'Слишком много сообщений' }), (req, res, next) => {
   const chat = chatForUser(req.params.id, req.userId);
   if (!chat) return res.status(403).json({ error: 'Нет доступа к чату' });
   req.chat = chat;
@@ -298,24 +299,46 @@ function mediaPreview(message, rawText) {
   }
 }
 
-router.post('/forward', auth, (req, res) => {
+router.post('/forward', auth, userLimiter({ name: 'chat_forward', max: 10, message: 'Слишком много пересылок' }), (req, res) => {
   const msgId = Number(req.body.message_id);
   const chatUids = Array.isArray(req.body.chat_uids) ? req.body.chat_uids.map(String).filter(Boolean) : [];
   if (!msgId || !chatUids.length) return res.status(400).json({ error: 'Укажите сообщение и чаты' });
   const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(msgId);
   if (!msg) return res.status(404).json({ error: 'Сообщение не найдено' });
   if (!chatForUser(String(msg.chat_id), req.userId)) return res.status(403).json({ error: 'Нет доступа к исходному сообщению' });
+  if (msg.e2ee) return res.status(400).json({ error: 'Зашифрованные сообщения нельзя пересылать' });
   const io = req.app.get('io');
   let count = 0;
   for (const uid of chatUids) {
     const t = chatForUser(uid, req.userId);
     if (!t || t.id === msg.chat_id) continue;
+    let media = msg.media;
+    let mediaType = msg.media_type;
+    // Вложения копируются в папку целевого чата, чтобы доступ к файлу был привязан к новому чату
+    if (media && media.startsWith('chats/')) {
+      const fileName = String(media).split('/').pop();
+      const targetDir = path.join(UPLOAD_DIR, 'chats', String(t.id));
+      const srcAbs = path.join(UPLOAD_DIR, String(media).replace(/^\/+/, ''));
+      if (srcAbs.startsWith(UPLOAD_DIR) && fs.existsSync(srcAbs)) {
+        try {
+          fs.mkdirSync(targetDir, { recursive: true });
+          fs.copyFileSync(srcAbs, path.join(targetDir, fileName));
+          media = `chats/${t.id}/${fileName}`;
+        } catch (e) {
+          media = '';
+          mediaType = '';
+        }
+      } else {
+        media = '';
+        mediaType = '';
+      }
+    }
     const r = db
       .prepare(
         `INSERT INTO messages (chat_id, sender_id, text, e2ee, media, media_type, media_name, media_mime, media_size, media_duration)
          VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`
       )
-      .run(t.id, req.userId, msg.text, msg.media, msg.media_type, msg.media_name, msg.media_mime, msg.media_size, msg.media_duration);
+      .run(t.id, req.userId, msg.text, media, mediaType, msg.media_name, msg.media_mime, msg.media_size, msg.media_duration);
     const message = messageWithMeta(
       db.prepare(`${MESSAGE_QUERY} WHERE m.id = ?`).get(Number(r.lastInsertRowid)),
       req.userId
@@ -402,7 +425,7 @@ router.delete('/:id/messages/:mid', auth, (req, res) => {
   res.json({ ok: true });
 });
 
-router.post('/:id/messages/:mid/reaction', auth, (req, res) => {
+router.post('/:id/messages/:mid/reaction', auth, userLimiter({ name: 'chat_reaction', max: 60, message: 'Слишком много реакций' }), (req, res) => {
   const chat = chatForUser(req.params.id, req.userId);
   if (!chat) return res.status(403).json({ error: 'Нет доступа к чату' });
   const msg = db.prepare('SELECT id FROM messages WHERE id = ? AND chat_id = ?').get(Number(req.params.mid), chat.id);

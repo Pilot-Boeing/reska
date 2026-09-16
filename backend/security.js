@@ -213,14 +213,16 @@ function captchaGenerate() {
     text = `${big} − ${small}`;
     answer = big - small;
   }
-  const token = signToken({ c: answer, kind: 'captcha' }, 600);
+  const token = signToken({ c: String(answer), h: hmacSign(String(answer), 'captcha'), kind: 'captcha' }, 600);
   return { token, text };
 }
 
 function captchaVerify(token, answer) {
   const payload = verifyToken(token);
   if (!payload || payload.kind !== 'captcha') return false;
-  return Number(answer) === payload.c;
+  const a = String(answer ?? '').trim();
+  if (String(payload.c) !== a) return false;
+  return hmacVerify(a, 'captcha', payload.h);
 }
 
 /* =========================================================

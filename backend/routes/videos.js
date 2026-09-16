@@ -11,6 +11,7 @@ const { encryptBuffer } = require('../encryption');
 const { randomUid } = require('../security');
 const { log } = require('../logger');
 const { notify, notifyFollowers, notifyAudience } = require('../notif');
+const { userLimiter } = require('../rateLimit');
 
 const router = express.Router();
 
@@ -88,7 +89,7 @@ router.get('/:id', (req, res) => {
   res.json({ video: videoWithMeta(row, userId) });
 });
 
-router.post('/', auth, uploadVideo('video'), (req, res) => {
+router.post('/', auth, userLimiter({ name: 'video_create', max: 5, message: 'Слишком много видео' }), uploadVideo('video'), (req, res) => {
   const title = sanitizeText(req.body.title, 120);
   if (!req.file) return res.status(400).json({ error: 'Выберите видеофайл' });
   if (!title) return res.status(400).json({ error: 'Укажите название' });
@@ -134,12 +135,12 @@ router.post('/:id/view', (req, res) => {
   res.json({ views });
 });
 
-router.post('/:id/like', auth, (req, res) => {
+router.post('/:id/like', auth, userLimiter({ name: 'video_like', max: 60, message: 'Слишком много лайков' }), (req, res) => {
   const v = findByIdOrUid('videos', req.params.id);
   if (!v) return res.status(404).json({ error: 'Видео не найдено' });
-  db.prepare('INSERT OR IGNORE INTO video_likes (video_id, user_id) VALUES (?, ?)').run(v.id, req.userId);
+  const r = db.prepare('INSERT OR IGNORE INTO video_likes (video_id, user_id) VALUES (?, ?)').run(v.id, req.userId);
   const n = db.prepare('SELECT COUNT(*) AS n FROM video_likes WHERE video_id = ?').get(v.id).n;
-  if (v.user_id !== req.userId) {
+  if (r.changes && v.user_id !== req.userId) {
     notify(req.app, v.user_id, req.user, 'like', {
       body: 'лайкнул(а) ваше видео',
       url: `watch/${v.uid}`
@@ -156,7 +157,7 @@ router.delete('/:id/like', auth, (req, res) => {
   res.json({ liked: false, likes: n });
 });
 
-router.post('/:id/react', auth, (req, res) => {
+router.post('/:id/react', auth, userLimiter({ name: 'video_react', max: 60, message: 'Слишком много реакций' }), (req, res) => {
   const v = findByIdOrUid('videos', req.params.id);
   if (!v) return res.status(404).json({ error: 'Видео не найдено' });
   const emoji = String(req.body.emoji || '').trim();
@@ -187,7 +188,7 @@ router.get('/:id/comments', (req, res) => {
   res.json({ comments: commentsFor('video_id', v.id) });
 });
 
-router.post('/:id/comments', auth, (req, res) => {
+router.post('/:id/comments', auth, userLimiter({ name: 'video_comment', max: 20, message: 'Слишком много комментариев' }), (req, res) => {
   const video = findByIdOrUid('videos', req.params.id);
   if (!video) return res.status(404).json({ error: 'Видео не найдено' });
   const text = sanitizeText(req.body.text, 2000);

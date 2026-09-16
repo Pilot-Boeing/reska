@@ -41,6 +41,20 @@ function isMuted(userId, chatId) {
   return !!db.prepare('SELECT 1 FROM muted_chats WHERE user_id = ? AND chat_id = ?').get(userId, chatId);
 }
 
+/* Подавление спама повторными уведомлениями: тот же автор + тот же тип + тот же
+   адрес (например, многократный follow/unfollow) в течение 12 часов. */
+const NOTIFY_COOLDOWN_SEC = 12 * 3600;
+function recentSame(userId, actorId, type, url) {
+  return !!db
+    .prepare(
+      `SELECT 1 FROM notifications
+       WHERE user_id = ? AND actor_id = ? AND type = ? AND url = ?
+         AND created_at > datetime('now', ?)
+       LIMIT 1`
+    )
+    .get(userId, actorId, type, url || '', `-${NOTIFY_COOLDOWN_SEC} seconds`);
+}
+
 /**
  * Создать уведомление.
  * @param app — express app (для io/onlineUsers)
@@ -55,6 +69,7 @@ function notify(app, userId, actor, type, opts = {}) {
   const col = TYPE_MAP[type];
   if (col && settings && settings[col] === 0) return;
   if (isMuted(userId, opts.chatId)) return;
+  if (type !== 'message' && recentSame(userId, actor.id, type, opts.url)) return;
   db.prepare(
     'INSERT INTO notifications (user_id, actor_id, type, title, body, url) VALUES (?, ?, ?, ?, ?, ?)'
   ).run(userId, actor.id, type, opts.title || actor.name || '', opts.body || '', opts.url || '');

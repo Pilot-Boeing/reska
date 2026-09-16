@@ -81,14 +81,18 @@ function getSessionUser(req) {
     return null;
   }
   const b = bindings(req);
-  if (row._ip && row._ip !== b.ip) {
-    db.prepare('UPDATE sessions SET ip_hash = ? WHERE token = ?').run(b.ip, token);
-    alert('session_ip_change', { req, meta: { userId: row.id } });
+  const ipDiff = row._ip && row._ip !== b.ip;
+  const uaDiff = row._ua && row._ua !== b.ua;
+  if (ipDiff || uaDiff) alert('session_binding_change', { req, meta: { userId: row.id } });
+  // Одновременная смена IP и UA = чужие cookie используются из другого браузера (вероятная кража).
+  if (ipDiff && uaDiff) {
+    revokeDevice(row.id, row._dev);
+    alert('session_theft_suspected', { req, meta: { userId: row.id, device: row._dev } });
+    return null;
   }
-  if (row._ua && row._ua !== b.ua) {
-    db.prepare('UPDATE sessions SET ua_hash = ? WHERE token = ?').run(b.ua, token);
-    alert('session_ua_change', { req, meta: { userId: row.id } });
-  }
+  // Смена только одного признака — мобильный роуминг: тихо обновляем привязку.
+  if (ipDiff) db.prepare('UPDATE sessions SET ip_hash = ? WHERE token = ?').run(b.ip, token);
+  if (uaDiff) db.prepare('UPDATE sessions SET ua_hash = ? WHERE token = ?').run(b.ua, token);
   return row;
 }
 

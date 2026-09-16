@@ -197,10 +197,6 @@ router.get('/me', auth, (req, res) => {
   });
 });
 
-router.get('/token', auth, (req, res) => {
-  res.json({ token: parseCookies(req).reska_session || '' });
-});
-
 /* ---------- выход ---------- */
 router.post('/logout', auth, (req, res) => {
   log('logout', { req, userId: req.userId });
@@ -303,8 +299,20 @@ router.delete('/sessions/:deviceId', auth, (req, res) => {
 /* ---------- восстановление пароля ---------- */
 router.post('/reset-status', (req, res) => {
   const { username } = req.body || {};
+  const key = bruteKey(getClientIp(req), String(username || '').toLowerCase());
+  const check = bruteCheck(key);
+  if (!check.ok) {
+    return res.status(429).json({ error: `Слишком много попыток. Подождите ${check.wait} сек.`, locked: true });
+  }
+  const needCaptcha = bruteNeedsCaptcha(key);
+  const { captcha_token: ct, captcha_answer: ca } = req.body || {};
+  if (needCaptcha && !captchaVerify(ct, ca)) {
+    return res.status(400).json({ error: 'Введите ответ на капчу', needCaptcha: true });
+  }
+  bruteFail(key);
   const user = db.prepare('SELECT id FROM users WHERE lower(username) = lower(?)').get(String(username || ''));
   if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+  bruteSuccess(key);
   res.json({ twofa: totpEnabled(user.id) });
 });
 

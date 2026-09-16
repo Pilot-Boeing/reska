@@ -6,6 +6,7 @@ const { sanitizeText, validName } = require('../validate');
 const { log } = require('../logger');
 const { notify } = require('../notif');
 const { hashFor } = require('../phone');
+const { userLimiter } = require('../rateLimit');
 
 const router = express.Router();
 
@@ -99,7 +100,7 @@ router.put('/:id', auth, (req, res) => {
   res.json({ user: { ...publicUser(updated), phone: updated.phone || '' } });
 });
 
-router.post('/:id/avatar', auth, uploadAvatar('avatar'), (req, res) => {
+router.post('/:id/avatar', auth, userLimiter({ name: 'avatar', max: 10, message: 'Слишком часто меняете аватар' }), uploadAvatar('avatar'), (req, res) => {
   const user = findByIdOrUid('users', req.params.id);
   if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
   if (user.id !== req.userId) return res.status(403).json({ error: 'Нельзя менять чужой аватар' });
@@ -126,7 +127,7 @@ function deleteMediaFile(rel) {
   if (abs.startsWith(UPLOAD_DIR) && fs.existsSync(abs)) try { fs.unlinkSync(abs); } catch (e) {}
 }
 
-router.post('/:id/cover', auth, uploadCover('cover'), (req, res) => {
+router.post('/:id/cover', auth, userLimiter({ name: 'cover', max: 10, message: 'Слишком часто меняете обложку' }), uploadCover('cover'), (req, res) => {
   const user = findByIdOrUid('users', req.params.id);
   if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
   if (user.id !== req.userId) return res.status(403).json({ error: 'Нельзя менять чужую обложку' });
@@ -138,16 +139,18 @@ router.post('/:id/cover', auth, uploadCover('cover'), (req, res) => {
   res.json({ user: publicUser(updated) });
 });
 
-router.post('/:id/follow', auth, (req, res) => {
+router.post('/:id/follow', auth, userLimiter({ name: 'follow', max: 30, message: 'Слишком часто подписываетесь' }), (req, res) => {
   const target = findByIdOrUid('users', req.params.id);
   if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
   if (target.id === req.userId) return res.status(400).json({ error: 'Нельзя подписаться на себя' });
-  db.prepare('INSERT OR IGNORE INTO follows (user_id, following_id) VALUES (?, ?)').run(req.userId, target.id);
+  const r = db.prepare('INSERT OR IGNORE INTO follows (user_id, following_id) VALUES (?, ?)').run(req.userId, target.id);
   const followers = db.prepare('SELECT COUNT(*) AS n FROM follows WHERE following_id = ?').get(target.id).n;
-  notify(req.app, target.id, req.user, 'follow', {
-    body: 'подписался(ась) на вас',
-    url: `profile/${req.user.uid}`
-  });
+  if (r.changes) {
+    notify(req.app, target.id, req.user, 'follow', {
+      body: 'подписался(ась) на вас',
+      url: `profile/${req.user.uid}`
+    });
+  }
   res.json({ isFollowing: true, followers });
 });
 

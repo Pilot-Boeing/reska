@@ -522,9 +522,7 @@ async function loadCaptcha() {
 
 /* ---------- socket ---------- */
 async function connectSocket() {
-  const data = await api('/auth/token', { silent: true }).catch(() => ({ token: null }));
-  if (!data.token) return;
-  socket = io({ auth: { token: data.token } });
+  socket = io();
 
   socket.on('connect', updateNetStatus);
   socket.on('disconnect', updateNetStatus);

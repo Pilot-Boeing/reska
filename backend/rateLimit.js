@@ -34,6 +34,27 @@ function limiter({ windowMs = 60 * 1000, max = 120, name = 'general', message = 
   };
 }
 
+/* Лимитер по пользователю (для write-эндпоинтов, где важна защита от спама
+   конкретным аккаунтом, а не IP). Требует, чтобы optionalAuth уже отработал. */
+function userLimiter({ windowMs = 60 * 1000, max = 30, name = 'user', message = 'Слишком много запросов' }) {
+  return (req, res, next) => {
+    const who = req.userId ? 'u' + req.userId : 'ip' + getClientIp(req);
+    const key = name + ':' + who;
+    const now = Date.now();
+    let w = windows.get(key);
+    if (!w || now - w.start > windowMs) {
+      w = { start: now, count: 0, windowMs };
+      windows.set(key, w);
+    }
+    w.count++;
+    if (w.count > max) {
+      res.set('Retry-After', String(Math.ceil((w.start + windowMs - now) / 1000)));
+      return res.status(429).json({ error: message });
+    }
+    next();
+  };
+}
+
 /* =========================================================
    2. Брутфорс: счётчик попыток + экспоненциальная задержка
    ========================================================= */
@@ -85,6 +106,7 @@ function bruteNeedsCaptcha(key, threshold = 3) {
 
 module.exports = {
   limiter,
+  userLimiter,
   bruteKey,
   bruteCheck,
   bruteFail,

@@ -8,6 +8,7 @@ const { sanitizeText } = require('../validate');
 const { randomUid } = require('../security');
 const { log } = require('../logger');
 const { notify, notifyFollowers, notifyAudience } = require('../notif');
+const { userLimiter } = require('../rateLimit');
 
 const router = express.Router();
 
@@ -70,7 +71,7 @@ router.get('/', (req, res) => {
   res.json({ posts: page.map((r) => postWithMeta(r, userId)), hasMore });
 });
 
-router.post('/', auth, uploadPostMedia('media'), (req, res) => {
+router.post('/', auth, userLimiter({ name: 'post_create', max: 10, message: 'Слишком много постов' }), uploadPostMedia('media'), (req, res) => {
   const repostOf = Number(req.body.repost_of) || 0;
   let text = sanitizeText(req.body.text, 5000);
   let media = '';
@@ -124,13 +125,13 @@ router.delete('/:id', auth, (req, res) => {
   res.json({ ok: true });
 });
 
-router.post('/:id/like', auth, (req, res) => {
+router.post('/:id/like', auth, userLimiter({ name: 'post_like', max: 60, message: 'Слишком много лайков' }), (req, res) => {
   const id = targetId('posts', req.params.id);
   if (!id) return res.status(404).json({ error: 'Пост не найден' });
-  db.prepare('INSERT OR IGNORE INTO post_likes (post_id, user_id) VALUES (?, ?)').run(id, req.userId);
+  const r = db.prepare('INSERT OR IGNORE INTO post_likes (post_id, user_id) VALUES (?, ?)').run(id, req.userId);
   const n = db.prepare('SELECT COUNT(*) AS n FROM post_likes WHERE post_id = ?').get(id).n;
   const post = db.prepare('SELECT user_id FROM posts WHERE id = ?').get(id);
-  if (post && post.user_id !== req.userId) {
+  if (r.changes && post && post.user_id !== req.userId) {
     notify(req.app, post.user_id, req.user, 'like', {
       body: 'лайкнул(а) ваш пост',
       url: 'feed'
@@ -147,7 +148,7 @@ router.delete('/:id/like', auth, (req, res) => {
   res.json({ liked: false, likes: n });
 });
 
-router.post('/:id/react', auth, (req, res) => {
+router.post('/:id/react', auth, userLimiter({ name: 'post_react', max: 60, message: 'Слишком много реакций' }), (req, res) => {
   const id = targetId('posts', req.params.id);
   if (!id) return res.status(404).json({ error: 'Пост не найден' });
   const emoji = String(req.body.emoji || '').trim();
@@ -187,7 +188,7 @@ router.get('/:id/comments', (req, res) => {
   res.json({ comments: commentsFor('post_id', p.id) });
 });
 
-router.post('/:id/comments', auth, (req, res) => {
+router.post('/:id/comments', auth, userLimiter({ name: 'post_comment', max: 20, message: 'Слишком много комментариев' }), (req, res) => {
   const post = findByIdOrUid('posts', req.params.id);
   if (!post) return res.status(404).json({ error: 'Пост не найден' });
   const text = sanitizeText(req.body.text, 2000);

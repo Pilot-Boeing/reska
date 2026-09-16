@@ -3,6 +3,7 @@ const { db } = require('../db');
 const { auth, publicUser, findByIdOrUid } = require('../helpers');
 const { notify } = require('../notif');
 const { sanitizeText } = require('../validate');
+const { userLimiter } = require('../rateLimit');
 
 const router = express.Router();
 
@@ -35,7 +36,7 @@ function emit(io, userId, event, payload) {
 }
 
 /* ---------- отправить заявку в друзья ---------- */
-router.post('/:id/friend', auth, (req, res) => {
+router.post('/:id/friend', auth, userLimiter({ name: 'friend_request', max: 10, message: 'Слишком много заявок' }), (req, res) => {
   const target = findByIdOrUid('users', req.params.id);
   if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
   if (target.id === req.userId) return res.status(400).json({ error: 'Нельзя добавить себя в друзья' });
@@ -58,7 +59,7 @@ router.post('/:id/friend', auth, (req, res) => {
 });
 
 /* ---------- принять заявку ---------- */
-router.post('/:id/friend/accept', auth, (req, res) => {
+router.post('/:id/friend/accept', auth, userLimiter({ name: 'friend_accept', max: 10, message: 'Слишком много заявок' }), (req, res) => {
   const target = findByIdOrUid('users', req.params.id);
   if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
   const r = db

@@ -1,5 +1,7 @@
 const express = require('express');
-const { db } = require('../db');
+const fs = require('fs');
+const path = require('path');
+const { db, UPLOAD_DIR } = require('../db');
 const { auth } = require('../helpers');
 const { uploadStory } = require('../upload');
 const { randomUid } = require('../security');
@@ -7,6 +9,33 @@ const { randomUid } = require('../security');
 const router = express.Router();
 
 const STORY_TTL_HOURS = 24;
+
+/* ---------- автоочистка просроченных stories (файлы + записи, раз в час) ---------- */
+function deleteStoryMedia(rel) {
+  if (!rel) return;
+  const abs = path.join(UPLOAD_DIR, String(rel).replace(/^\/+/, ''));
+  if (abs.startsWith(UPLOAD_DIR) && fs.existsSync(abs)) {
+    try { fs.unlinkSync(abs); } catch (e) {}
+  }
+}
+
+function cleanupExpiredStories() {
+  const expired = db
+    .prepare("SELECT id, media FROM stories WHERE expires_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now')")
+    .all();
+  for (const s of expired) {
+    deleteStoryMedia(s.media);
+    db.prepare('DELETE FROM stories WHERE id = ?').run(s.id);
+  }
+  return expired.length;
+}
+
+try {
+  setInterval(() => {
+    try { cleanupExpiredStories(); } catch (e) {}
+  }, 60 * 60 * 1000).unref();
+  cleanupExpiredStories();
+} catch (e) {}
 
 router.post('/', auth, uploadStory('media'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Файл не загружен' });
@@ -58,9 +87,10 @@ router.post('/:id/view', auth, (req, res) => {
 
 router.delete('/:id', auth, (req, res) => {
   const id = Number(req.params.id);
-  const story = db.prepare('SELECT id, user_id FROM stories WHERE id = ?').get(id);
+  const story = db.prepare('SELECT id, user_id, media FROM stories WHERE id = ?').get(id);
   if (!story) return res.status(404).json({ error: 'Story не найдена' });
   if (story.user_id !== req.userId) return res.status(403).json({ error: 'Нельзя удалить чужую story' });
+  deleteStoryMedia(story.media);
   db.prepare('DELETE FROM stories WHERE id = ?').run(id);
   res.json({ ok: true });
 });
