@@ -147,6 +147,7 @@ let activeChat = null;
 let chatsCache = [];
 let chatMsgState = null;
 let chatReplyTarget = null;
+let chatMediaById = {};
 let currentSearch = '';
 
 /* ---------- экран загрузки ---------- */
@@ -1823,39 +1824,39 @@ async function openChat(chatUid) {
   if (isGroup) {
     head = `<b>${esc(chat.name)}</b>
       <span class="muted" style="font-size:12px">${chat.member_count || 1} участн.</span>
-      <button class="btn btn-ghost btn-sm group-members-btn" style="margin-left:auto">👥 Состав</button>
-      <button class="btn btn-ghost btn-sm chat-mute" id="chat-mute" title="Без звука">${chat.muted ? '🔕' : '🔔'}</button>
-      <button class="btn btn-ghost btn-sm chat-del" title="Удалить группу">🗑</button>`;
+      <button class="btn btn-ghost btn-sm group-members-btn" style="margin-left:auto"><span class="bn-ico" data-ico="group"></span>Состав</button>
+      <button class="btn btn-ghost btn-sm chat-mute" id="chat-mute" title="Без звука"><span class="bn-ico" data-ico="${chat.muted ? 'bell_off' : 'bell'}"></span></button>
+      <button class="btn btn-ghost btn-sm chat-del" title="Удалить группу"><span class="bn-ico" data-ico="trash"></span></button>`;
   } else if (isSelf) {
     head = `<img class="avatar sm" src="${mediaUrl(chat.other.avatar)}" alt="">
       <b>📝 Сообщения себе</b>
       <span class="muted">заметки · избранное · черновики</span>
-      <button class="btn btn-ghost btn-sm chat-del" style="margin-left:auto" title="Удалить чат">🗑</button>`;
+      <button class="btn btn-ghost btn-sm chat-del" style="margin-left:auto" title="Удалить чат"><span class="bn-ico" data-ico="trash"></span></button>`;
   } else if (chat && chat.other) {
     head = `<a href="#/profile/${esc(chat.other.uid)}"><img class="avatar sm" src="${mediaUrl(chat.other.avatar)}" alt=""></a>
       <b>${esc(displayName(chat.other))}</b>
       <span class="e2ee-tag" title="Сообщения шифруются на вашем устройстве (E2EE)">🔒 E2EE</span>
-      <button class="btn btn-ghost btn-sm chat-call" id="chat-call" title="Позвонить">📞</button>
-      <button class="btn btn-ghost btn-sm chat-mute" id="chat-mute" title="Без звука">${chat.muted ? '🔕' : '🔔'}</button>
-      <button class="btn btn-ghost btn-sm chat-del" title="Удалить чат">🗑</button>`;
+      <button class="btn btn-ghost btn-sm chat-call" id="chat-call" title="Позвонить"><span class="bn-ico" data-ico="phone"></span></button>
+      <button class="btn btn-ghost btn-sm chat-mute" id="chat-mute" title="Без звука"><span class="bn-ico" data-ico="${chat.muted ? 'bell_off' : 'bell'}"></span></button>
+      <button class="btn btn-ghost btn-sm chat-del" title="Удалить чат"><span class="bn-ico" data-ico="trash"></span></button>`;
   }
   view.innerHTML = `
     <div class="chat-screen card">
       <div class="chat-head">
-        <button class="btn btn-ghost btn-sm chat-back" title="Назад к чатам">←</button>
+        <button class="btn btn-ghost btn-sm chat-back" title="Назад к чатам"><span class="bn-ico" data-ico="back"></span></button>
         ${head}
       </div>
       <div class="chat-messages" id="chat-messages"></div>
       <div class="chat-preview hidden" id="chat-preview"></div>
       <form class="chat-input" id="chat-input">
         <div class="chat-tools">
-          <button type="button" class="chat-tool" data-tool="file" title="Файл">📎</button>
-          <button type="button" class="chat-tool" data-tool="media" title="Фото/видео">🖼</button>
-          <button type="button" class="chat-tool" data-tool="audio" title="Аудиосообщение">🎤</button>
-          <button type="button" class="chat-tool" data-tool="round" title="Кружок (видео)">⭕</button>
+          <button type="button" class="chat-tool" data-tool="file" title="Файл"><span data-ico="paperclip"></span></button>
+          <button type="button" class="chat-tool" data-tool="media" title="Фото/видео"><span data-ico="image"></span></button>
+          <button type="button" class="chat-tool" data-tool="audio" title="Голосовое сообщение"><span data-ico="mic"></span></button>
+          <button type="button" class="chat-tool" data-tool="round" title="Кружок (видео)"><span data-ico="round"></span></button>
         </div>
         <input type="text" placeholder="Сообщение..." autocomplete="off" maxlength="4000" id="chat-text">
-        <button type="submit" class="btn btn-primary" id="chat-send">➤</button>
+        <button type="submit" class="chat-send" id="chat-send" title="Отправить"><span data-ico="send"></span></button>
       </form>
       <div class="chat-reply-bar hidden" id="chat-reply-bar">
         <div class="reply-quote"><b class="reply-name"></b><span class="reply-text"></span></div>
@@ -1873,7 +1874,8 @@ async function openChat(chatUid) {
     try {
       const res = await api(`/chats/${chatUid}/mute`, { method: chat.muted ? 'DELETE' : 'POST' });
       chat.muted = res.muted;
-      muteBtn.textContent = res.muted ? '🔕' : '🔔';
+      const ico = muteBtn.querySelector('[data-ico]');
+      if (ico) { ico.setAttribute('data-ico', res.muted ? 'bell_off' : 'bell'); paintIcon(ico); }
       toast(res.muted ? 'Чат без звука' : 'Звук включён');
     } catch (e) { toast(e.message, 'error'); }
   });
@@ -1882,6 +1884,8 @@ async function openChat(chatUid) {
 
   const msgs = [];
   for (const m of data.messages) msgs.push(await decryptMessage(m, chatUid));
+  chatMediaById = {};
+  msgs.forEach((m) => { if (m && m.media) chatMediaById[String(m.id)] = m; });
   msgs.forEach((m) => appendMessage(m));
   scrollChat();
 
@@ -1930,8 +1934,13 @@ async function openChat(chatUid) {
     attach = null;
     previewBox.classList.add('hidden');
     previewBox.innerHTML = '';
-    sendBtn.textContent = '➤';
+    setSendIcon('send');
     sendBtn.classList.remove('rec');
+  }
+
+  function setSendIcon(name) {
+    const ico = sendBtn.querySelector('[data-ico]');
+    if (ico) { ico.setAttribute('data-ico', name); paintIcon(ico); }
   }
 
   function showAttachPreview() {
@@ -1959,7 +1968,8 @@ async function openChat(chatUid) {
     rm.addEventListener('click', () => { if (recorder) stopRec(true); else revokeAttach(); });
     p.appendChild(rm);
     previewBox.appendChild(p);
-    sendBtn.textContent = '➤';
+    setSendIcon('send');
+    sendBtn.classList.remove('rec');
   }
 
   function startRec(type) {
@@ -1980,43 +1990,96 @@ async function openChat(chatUid) {
     for (const c of candidates) { if (MediaRecorder.isTypeSupported(c)) { mime = c; break; } }
     const opts = { audio: true };
     if (isRound) opts.video = { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 1280 } };
-    navigator.mediaDevices.getUserMedia(opts).then((stream) => {
-      recStream = stream;
-      try {
-        recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-      } catch (e) {
-        recorder = new MediaRecorder(stream);
+    const permName = navigator.permissions && navigator.permissions.query && (isRound ? 'camera' : 'microphone');
+    const preflight = permName
+      ? navigator.permissions.query({ name: permName }).then((s) => s.state).catch(() => 'prompt')
+      : Promise.resolve('prompt');
+    preflight.then((state) => {
+      if (state === 'denied') {
+        showMediaError(type, 'Доступ к ' + (isRound ? 'камере и микрофону' : 'микрофону') + ' запрещён ранее — разрешения запомнили отказ.', { name: 'NotAllowedError' });
+        return;
       }
-      const chunks = [];
-      recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
-      recorder.onstop = () => {
-        const type = recorder.mimeType || (isRound ? 'video/webm' : 'audio/webm');
-        const ext = /mp4/.test(type) ? 'mp4' : 'webm';
-        const blob = new Blob(chunks, { type });
-        const dur = Math.round((Date.now() - recStart) / 1000);
-        if (attach) revokeAttach();
-        attach = {
-          file: blob,
-          type: isRound ? 'round' : 'audio',
-          name: (isRound ? 'round_' : 'voice_') + Date.now() + '.' + ext,
-          duration: dur,
-          url: URL.createObjectURL(blob)
+      navigator.mediaDevices.getUserMedia(opts).then((stream) => {
+        recStream = stream;
+        try {
+          recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+        } catch (e) {
+          recorder = new MediaRecorder(stream);
+        }
+        const chunks = [];
+        recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+        recorder.onstop = () => {
+          const type = recorder.mimeType || (isRound ? 'video/webm' : 'audio/webm');
+          const ext = /mp4/.test(type) ? 'mp4' : 'webm';
+          const blob = new Blob(chunks, { type });
+          const dur = Math.round((Date.now() - recStart) / 1000);
+          if (attach) revokeAttach();
+          attach = {
+            file: blob,
+            type: isRound ? 'round' : 'audio',
+            name: (isRound ? 'round_' : 'voice_') + Date.now() + '.' + ext,
+            duration: dur,
+            url: URL.createObjectURL(blob)
+          };
+          stopStream(recStream); recStream = null;
+          recorder = null;
+          clearRecUi();
+          showAttachPreview();
+          toast(isRound ? 'Кружок готов, отправьте' : 'Аудио готово, отправьте');
         };
-        stopStream(recStream); recStream = null;
-        recorder = null;
-        clearRecUi();
-        showAttachPreview();
-        toast(isRound ? 'Кружок готов, отправьте' : 'Аудио готово, отправьте');
-      };
-      recorder.start(250);
-      recStart = Date.now();
-      renderRecUi(isRound);
-      recTimer = setInterval(() => {
-        const el = $('#chat-preview .rec-timer');
-        if (el) el.textContent = fmtDuration((Date.now() - recStart) / 1000);
-        if (recMax && Date.now() - recStart >= recMax * 1000) stopRec(false);
-      }, 250);
-    }).catch((err) => showMediaError(isRound ? 'round' : 'audio', null, err));
+        recorder.start(250);
+        recStart = Date.now();
+        renderRecUi(isRound);
+        recTimer = setInterval(() => {
+          const el = $('#chat-preview .rec-timer');
+          if (el) el.textContent = fmtDuration((Date.now() - recStart) / 1000);
+          if (recMax && Date.now() - recStart >= recMax * 1000) stopRec(false);
+        }, 250);
+      }).catch((err) => showMediaError(isRound ? 'round' : 'audio', null, err));
+    });
+  }
+
+  function requestFile(kind) {
+    const picker = document.createElement('input');
+    picker.type = 'file';
+    const limits = { image: 60, video: 450, audio: 60, file: 450 };
+    const accept = { image: 'image/*', video: 'video/*', audio: 'audio/*', file: '' }[kind] || '';
+    picker.accept = accept;
+    picker.addEventListener('change', () => {
+      const f = picker.files && picker.files[0];
+      if (!f) return;
+      const max = limits[kind] || 450;
+      if (f.size > max * 1024 * 1024) {
+        toast(`Файл слишком большой (${fmtSize(f.size)}). Максимум ${max} МБ`, 'error');
+        return;
+      }
+      const mime = f.type || '';
+      const isImage = mime.startsWith('image/');
+      const isVideo = mime.startsWith('video/');
+      const isAudio = mime.startsWith('audio/') || mime === 'application/ogg';
+      if (kind === 'image' && !isImage) return toast('Это не изображение', 'error');
+      if (kind === 'video' && !isVideo) return toast('Это не видео', 'error');
+      if (kind === 'media' && !isImage && !isVideo) return toast('Выберите фото или видео', 'error');
+      setAttachFromFile(f);
+    });
+    picker.click();
+  }
+
+  function setAttachFromFile(f) {
+    if (recorder) stopRec(true);
+    const isImage = f.type.startsWith('image/');
+    const isVideo = f.type.startsWith('video/');
+    const isAudio = f.type.startsWith('audio/') || f.type === 'application/ogg';
+    if (attach) revokeAttach();
+    const url = URL.createObjectURL(f);
+    attach = {
+      file: f,
+      type: isImage ? 'image' : isVideo ? 'video' : isAudio ? 'audio' : 'file',
+      name: f.name || ('media_' + Date.now()),
+      size: f.size || 0,
+      url
+    };
+    showAttachPreview();
   }
 
   function renderRecUi(isRound) {
@@ -2026,13 +2089,13 @@ async function openChat(chatUid) {
         ${isRound ? `<video class="rec-live" autoplay muted playsinline></video>` : '<span class="rec-dot"></span>'}
         <span class="rec-timer">0:00</span>
         <span class="rec-label">${isRound ? '⭕ Кружок (до 2:00)' : '🎤 Аудио (до 1:00)'}</span>
-        <button type="button" class="btn btn-primary btn-sm rec-stop">⏹</button>
+        <button type="button" class="btn btn-primary btn-sm rec-stop"><span data-ico="stop"></span></button>
       </div>`;
     if (isRound && recStream) {
       const v = $('.rec-live', previewBox);
       v.srcObject = recStream;
     }
-    sendBtn.textContent = '⏺';
+    setSendIcon('stop');
     sendBtn.classList.add('rec');
     const stop = $('.rec-stop', previewBox);
     if (stop) stop.addEventListener('click', () => stopRec(false));
@@ -2062,35 +2125,10 @@ async function openChat(chatUid) {
     s.getTracks().forEach((t) => t.stop());
   }
 
-  function openFilePicker(accept, kind) {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = accept;
-    input.onchange = () => {
-      const f = input.files && input.files[0];
-      if (!f) return;
-      if (recorder) stopRec(true);
-      revokeAttach();
-      const isImg = f.type.startsWith('image/');
-      const isVid = f.type.startsWith('video/');
-      const isAud = f.type.startsWith('audio/');
-      attach = {
-        file: f,
-        type: isImg ? 'image' : isVid ? 'video' : isAud ? 'audio' : 'file',
-        name: f.name,
-        duration: 0,
-        url: isImg || isVid || isAud ? URL.createObjectURL(f) : null
-      };
-      showAttachPreview();
-      chatInput.focus();
-    };
-    input.click();
-  }
-
   $$('.chat-tool', view).forEach((btn) => btn.addEventListener('click', () => {
     const tool = btn.dataset.tool;
-    if (tool === 'file') openFilePicker('*', 'file');
-    else if (tool === 'media') openFilePicker('image/*,video/*', 'media');
+    if (tool === 'file') requestFile('file');
+    else if (tool === 'media') requestFile('media');
     else if (tool === 'audio') startRec('audio');
     else if (tool === 'round') startRec('round');
   }));
@@ -2182,7 +2220,8 @@ function mediaNode(m) {
     img.src = url;
     img.alt = '';
     img.loading = 'lazy';
-    return withDownload(img, m, 'msg-media-img-wrap');
+    img.addEventListener('click', () => openMediaViewerByMsg(m));
+    return withDownload(img, m, 'msg-media-img-wrap', true);
   }
   if (type === 'audio') {
     const audio = document.createElement('audio');
@@ -2201,11 +2240,19 @@ function mediaNode(m) {
     video.loop = true;
     video.playsInline = true;
     video.preload = 'metadata';
-    video.addEventListener('click', () => {
-      if (video.paused) { video.muted = false; video.play(); }
-      else { video.pause(); video.muted = true; }
-    });
+    video.addEventListener('click', () => openMediaViewerByMsg(m));
     wrap.appendChild(video);
+    const dl = document.createElement('a');
+    dl.className = 'msg-media-dl';
+    dl.href = downloadMediaUrl(m);
+    dl.target = '_blank';
+    dl.rel = 'noopener';
+    dl.download = m.media_name || 'file';
+    dl.title = 'Скачать';
+    const dli = document.createElement('span');
+    dli.setAttribute('data-ico', 'download');
+    dl.appendChild(dli);
+    wrap.appendChild(dl);
     const badge = document.createElement('span');
     badge.className = 'round-duration';
     badge.textContent = fmtDuration(m.media_duration);
@@ -2219,7 +2266,8 @@ function mediaNode(m) {
     video.controls = true;
     video.playsInline = true;
     video.preload = 'metadata';
-    return withDownload(video, m, 'msg-media-video-wrap');
+    video.addEventListener('dblclick', () => openMediaViewerByMsg(m));
+    return withDownload(video, m, 'msg-media-video-wrap', true);
   }
   const a = document.createElement('a');
   a.className = 'msg-media-file';
@@ -2231,7 +2279,7 @@ function mediaNode(m) {
   return a;
 }
 
-function withDownload(mediaEl, m, wrapClass) {
+function withDownload(mediaEl, m, wrapClass, openable) {
   const wrap = document.createElement('div');
   wrap.className = 'msg-media-wrap ' + wrapClass;
   wrap.appendChild(mediaEl);
@@ -2241,9 +2289,21 @@ function withDownload(mediaEl, m, wrapClass) {
   dl.target = '_blank';
   dl.rel = 'noopener';
   dl.download = m.media_name || 'file';
-  dl.textContent = '⬇';
   dl.title = 'Скачать';
+  const dli = document.createElement('span');
+  dli.setAttribute('data-ico', 'download');
+  dl.appendChild(dli);
   wrap.appendChild(dl);
+  if (openable) {
+    const open = document.createElement('button');
+    open.className = 'msg-media-open';
+    open.title = 'Открыть';
+    const oi = document.createElement('span');
+    oi.setAttribute('data-ico', 'maximize');
+    open.appendChild(oi);
+    open.addEventListener('click', (e) => { e.stopPropagation(); openMediaViewerByMsg(m); });
+    wrap.appendChild(open);
+  }
   return wrap;
 }
 
@@ -2299,6 +2359,16 @@ function openForwardModal(messageId) {
   });
 }
 
+function msgActionBtn(ico, title, fn) {
+  const b = document.createElement('button');
+  b.title = title;
+  const s = document.createElement('span');
+  s.setAttribute('data-ico', ico);
+  b.appendChild(s);
+  b.addEventListener('click', fn);
+  return b;
+}
+
 function appendMessage(m, atTop) {
   const container = $('#chat-messages');
   if (!container) return;
@@ -2337,27 +2407,16 @@ function appendMessage(m, atTop) {
   if (m.sender_id === me.id) {
     const mark = document.createElement('span');
     mark.className = 'msg-read sent';
-    mark.textContent = '✓';
+    mark.setAttribute('data-ico', 'check');
     time.appendChild(mark);
   }
   const actions = document.createElement('div');
   actions.className = 'msg-actions';
   if (m.sender_id === me.id) {
-    const ed = document.createElement('button');
-    ed.textContent = '✏';
-    ed.title = 'Редактировать';
-    ed.addEventListener('click', () => editMessage(div, m));
-    actions.appendChild(ed);
-    const del = document.createElement('button');
-    del.textContent = '🗑';
-    del.title = 'Удалить';
-    del.addEventListener('click', () => deleteMessage(m));
-    actions.appendChild(del);
+    actions.appendChild(msgActionBtn('edit', 'Редактировать', () => editMessage(div, m)));
+    actions.appendChild(msgActionBtn('trash', 'Удалить', () => deleteMessage(m)));
   }
-  const react = document.createElement('button');
-  react.textContent = '😊';
-  react.title = 'Реакция';
-  react.addEventListener('click', () => {
+  actions.appendChild(msgActionBtn('smile', 'Реакция', () => {
     const picker = $('.reaction-picker', div);
     if (picker) picker.remove();
     else {
@@ -2371,20 +2430,9 @@ function appendMessage(m, atTop) {
       });
       div.appendChild(p);
     }
-  });
-  actions.appendChild(react);
-
-  const replyBtn = document.createElement('button');
-  replyBtn.textContent = '↩';
-  replyBtn.title = 'Ответить';
-  replyBtn.addEventListener('click', () => setChatReply(m.id, m.sender_id === me.id ? (me.name || 'Вы') : displayName({ uid: m.sender_uid, name: m.name }), m.text, m.media_type));
-  actions.appendChild(replyBtn);
-
-  const fwd = document.createElement('button');
-  fwd.textContent = '➡';
-  fwd.title = 'Переслать';
-  fwd.addEventListener('click', () => openForwardModal(m.id));
-  actions.appendChild(fwd);
+  }));
+  actions.appendChild(msgActionBtn('reply', 'Ответить', () => setChatReply(m.id, m.sender_id === me.id ? (me.name || 'Вы') : displayName({ uid: m.sender_uid, name: m.name }), m.text, m.media_type)));
+  actions.appendChild(msgActionBtn('forward', 'Переслать', () => openForwardModal(m.id)));
   div.appendChild(actions);
   const rx = m.reactions && m.reactions.length ? m.reactions : null;
   if (rx) {
@@ -2409,6 +2457,84 @@ function appendMessage(m, atTop) {
   }
   if (atTop && container.firstChild) container.insertBefore(node, container.firstChild);
   else container.appendChild(node);
+  if (m.media) chatMediaById[String(m.id)] = m;
+}
+
+function mediaListFromDom() {
+  const out = [];
+  $$('#chat-messages .msg').forEach((n) => {
+    const mm = chatMediaById[String(Number(n.dataset.mid))];
+    if (mm && mm.media) out.push(mm);
+  });
+  return out;
+}
+
+let viewerEl = null;
+let viewerKeyHandler = null;
+
+function openMediaViewerByMsg(m) {
+  const list = mediaListFromDom();
+  let i = list.findIndex((x) => x.id === m.id);
+  if (i < 0) i = 0;
+  openMediaViewer(list, i);
+}
+
+function openMediaViewer(list, index) {
+  if (!list || !list.length) return;
+  closeMediaViewer();
+  const m = list[index];
+  const url = mediaUrl(m.media);
+  const type = m.media_type || '';
+  let stage;
+  if (type === 'image') {
+    stage = `<img src="${url}" alt="">`;
+  } else if (type === 'video' || type === 'round') {
+    stage = `<video src="${url}" controls playsinline preload="metadata" ${type === 'round' ? 'style="object-fit:cover;max-height:80vh;max-width:100%;border-radius:50%"' : ''}></video>`;
+  } else if (type === 'audio') {
+    stage = `<audio src="${url}" controls preload="metadata"></audio>`;
+  } else {
+    stage = `<div class="mv-file"><span data-ico="paperclip"></span><b>${esc(m.media_name || 'Файл')}</b><span class="muted">${m.media_size ? fmtSize(m.media_size) : ''}</span></div>`;
+  }
+  const name = type === 'round' ? `Кружок · ${fmtDuration(m.media_duration)}`
+    : type === 'image' ? (m.media_name || 'Фото')
+    : type === 'video' ? (m.media_name || 'Видео')
+    : type === 'audio' ? 'Аудио'
+    : (m.media_name || 'Файл');
+  const multi = list.length > 1;
+  viewerEl = document.createElement('div');
+  viewerEl.className = 'media-viewer';
+  viewerEl.id = 'media-viewer';
+  viewerEl.innerHTML = `
+    <button class="mv-close" data-ico="close"></button>
+    <div class="mv-stage">${stage}</div>
+    ${multi ? `<button class="mv-prev" data-ico="back"></button><button class="mv-next" data-ico="arrow"></button>` : ''}
+    <div class="mv-bar">
+      <span class="mv-name">${esc(name)}</span>
+      ${multi ? `<span class="mv-count">${index + 1}/${list.length}</span>` : ''}
+      <a class="btn btn-primary btn-sm mv-dl" href="${downloadMediaUrl(m)}" download="${esc(m.media_name || 'file')}" target="_blank" rel="noopener"><span data-ico="download"></span> Скачать</a>
+    </div>`;
+  document.body.appendChild(viewerEl);
+  paintIcons(viewerEl);
+  const goTo = (j) => openMediaViewer(list, (j + list.length) % list.length);
+  $('.mv-close', viewerEl).addEventListener('click', closeMediaViewer);
+  const prev = $('.mv-prev', viewerEl);
+  if (prev) prev.addEventListener('click', () => goTo(index - 1));
+  const next = $('.mv-next', viewerEl);
+  if (next) next.addEventListener('click', () => goTo(index + 1));
+  viewerEl.addEventListener('click', (e) => { if (e.target === viewerEl) closeMediaViewer(); });
+  viewerKeyHandler = (e) => {
+    if (e.key === 'Escape') closeMediaViewer();
+    if (e.key === 'ArrowLeft' && prev) goTo(index - 1);
+    if (e.key === 'ArrowRight' && next) goTo(index + 1);
+  };
+  document.addEventListener('keydown', viewerKeyHandler);
+}
+
+function closeMediaViewer() {
+  if (viewerKeyHandler) document.removeEventListener('keydown', viewerKeyHandler);
+  viewerKeyHandler = null;
+  if (viewerEl) viewerEl.remove();
+  viewerEl = null;
 }
 
 async function loadChatHistory() {
@@ -3739,7 +3865,7 @@ function viewAbout() {
         <div class="app-badge" data-ico="fire"></div>
         <div><div style="font-weight:800;font-size:18px;color:var(--mchs)">РЕСКА</div><div class="muted" style="font-size:13px">Социальная сеть МЧС России</div></div>
       </div>
-      <p class="muted" style="font-size:13.5px;line-height:1.6">«Оперативный пост» — защищённая российская социальная платформа: лента, видео, группы, зашифрованные чаты и звонки через TURN-релей.</p>
+      <p class="muted" style="font-size:13.5px;line-height:1.6">«РЕСКА» — защищённая социальная сеть подразделений МЧС России: лента, видео, зашифрованные чаты и звонки через TURN-релей.</p>
       <div class="about-row"><span>Версия</span><span>1.0.0</span></div>
       <div class="about-row"><span>Сервер</span><span>reska-z7h0.onrender.com</span></div>
     </div>`;
