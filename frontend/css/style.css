@@ -895,9 +895,8 @@ textarea { resize: vertical; }
 .user-row.unread { background: color-mix(in srgb, var(--primary) 8%, transparent); border-left: 3px solid var(--primary); }
 
 /* =========================================================
-   КОНСПЕКТЫ / ИЗБРАННОЕ / ГРУППЫ
+   ИЗБРАННОЕ
    ========================================================= */
-.notes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
 .note-card { padding: 18px; display: flex; flex-direction: column; gap: 8px; }
 .note-card h3 { font-size: 16px; }
 .note-card p { font-size: 14px; line-height: 1.5; color: var(--muted); flex: 1; word-break: break-word; }

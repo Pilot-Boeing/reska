@@ -412,35 +412,16 @@ async function main() {
   r = await api('DELETE', `/api/users/${userB.uid}/alias`, { jar: jarA });
   check('алиас убран', r.res.status === 200);
 
-  /* 18. библиотека: конспекты и группы (серверное хранение) */
-  r = await api('GET', '/api/library/notes', { jar: jarB });
-  check('список конспектов пуст', r.res.status === 200 && Array.isArray(r.data.notes));
-  r = await api('POST', '/api/library/notes', { body: { title: 'Тактика', body: 'заметка #тест' }, jar: jarB });
-  check('создание конспекта', r.res.status === 201 && r.data.note.title === 'Тактика', String(r.res.status));
-  const noteId = r.data.note.id;
-  r = await api('PUT', `/api/library/notes/${noteId}`, { body: { title: 'Тактика 2', body: 'x' }, jar: jarB });
-  check('обновление конспекта', r.res.status === 200 && r.data.note.title === 'Тактика 2');
-  r = await api('GET', '/api/library/notes', { jar: jarB });
-  check('конспект в списке', r.data.notes.some((n) => n.id === noteId));
-  r = await api('DELETE', `/api/library/notes/${noteId}`, { jar: jarB });
-  check('удаление конспекта', r.res.status === 200);
+  /* 18. групповые чаты: создание и управление */
   const jarA2 = {};
   r = await api('POST', '/api/auth/login', { body: { username: 'u_admin', password: 'newpass99' }, jar: jarA2 });
   merge(jarA2, jarFrom(r.res));
   const adminId = r.data.user.id;
-  r = await api('POST', '/api/library/notes', { body: { title: 'note-admin' }, jar: jarA2 });
-  const noteAdmin = r.data.note;
-  r = await api('PUT', `/api/library/notes/${noteAdmin.id}`, { body: { title: 'hack' }, jar: jarB });
-  check('чужой конспект нельзя редактировать', r.res.status === 403, String(r.res.status));
-  r = await api('DELETE', `/api/library/notes/${noteAdmin.id}`, { jar: jarB });
-  check('чужой конспект нельзя удалять', r.res.status === 403, String(r.res.status));
 
   r = await api('POST', '/api/library/groups', { body: { name: 'Группа А', description: 'описание' }, jar: jarB });
   check('создание группы', r.res.status === 201 && r.data.group.name === 'Группа А' && !!r.data.group.chatUid, String(r.res.status));
   const groupId = r.data.group.id;
   const groupChatUid = r.data.group.chatUid;
-  r = await api('PUT', `/api/library/groups/${groupId}`, { body: { name: 'Группа Б' }, jar: jarB });
-  check('обновление группы', r.res.status === 200 && r.data.group.name === 'Группа Б');
 
   r = await api('POST', `/api/library/groups/${groupId}/members`, { body: { user_id: adminId }, jar: jarB });
   check('добавление участника создателем', r.res.status === 200, String(r.res.status));
@@ -474,8 +455,8 @@ async function main() {
   r = await api('GET', `/api/chats/${groupChatUid}/messages`, { jar: jarA2 });
   check('исключённый теряет доступ', r.res.status === 403, String(r.res.status));
 
-  r = await api('DELETE', `/api/library/groups/${groupId}`, { jar: jarB });
-  check('удаление группы', r.res.status === 200);
+  r = await api('DELETE', `/api/chats/${groupChatUid}`, { jar: jarB });
+  check('удаление группы через чат', r.res.status === 200, String(r.res.status));
 
   /* 18. удаление чатов */
   r = await api('POST', '/api/chats', { body: { user_id: outsiderId }, jar: jarA2 });
@@ -490,14 +471,13 @@ async function main() {
 
   r = await api('POST', '/api/library/groups', { body: { name: 'Группа У' }, jar: jarB });
   check('группа для удаления создана', r.res.status === 201 && !!r.data.group.chatUid, String(r.res.status));
-  const gdelId = r.data.group.id;
   const gdelChat = r.data.group.chatUid;
   r = await api('DELETE', `/api/chats/${gdelChat}`, { jar: jarA2 });
   check('не создатель не удалит группу', r.res.status === 403, String(r.res.status));
   r = await api('DELETE', `/api/chats/${gdelChat}`, { jar: jarB });
   check('удаление группы через чат', r.res.status === 200, String(r.res.status));
-  r = await api('GET', '/api/library/groups', { jar: jarB });
-  check('группа исчезла из списка', !r.data.groups.some((g) => g.id === gdelId));
+  r = await api('GET', '/api/chats', { jar: jarB });
+  check('группа исчезла из чатов', !r.data.chats.some((c) => c.uid === gdelChat));
 
   /* 19. уведомления: центр (like/comment/follow/friend/message) */
   r = await api('POST', `/api/posts/${postUid}/like`, { jar: jarB });

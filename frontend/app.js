@@ -378,9 +378,7 @@ async function render() {
       case 'search': currentSearch = query.get('q') || currentSearch; await viewSearch(query.get('type') || 'all'); break;
       case 'videos-new': viewVideoForm(false); break;
       case 'clips-new': viewVideoForm(true); break;
-      case 'notes': viewNotes(); break;
       case 'favorites': viewFavorites(); break;
-      case 'groups': viewGroups(); break;
       case 'friends': await viewFriends(); break;
       case 'notifications': await viewNotifications(); break;
       case 'about': viewAbout(); break;
@@ -3347,75 +3345,11 @@ function openNewPostModal() {
   });
 }
 const LS = {
-  notesKey() { return 'reska_notes_' + (me ? me.uid : 'anon'); },
   favKey() { return 'reska_favs_' + (me ? me.uid : 'anon'); },
-  groupsKey() { return 'reska_groups_' + (me ? me.uid : 'anon'); },
   load(k) { try { return JSON.parse(localStorage.getItem(k)) || []; } catch (e) { return []; } },
   save(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
 };
 function luid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
-/* ---------- КОНСПЕКТЫ ---------- */
-async function viewNotes() {
-  const view = $('#view');
-  view.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-      <div class="page-title" style="margin:0"><span class="screen-ico" data-ico="notes"></span>Конспекты</div>
-      <button class="btn btn-primary btn-sm" id="note-add">＋ Новый</button>
-    </div>
-    <div class="notes-grid" id="notes-grid"></div>`;
-  $('#note-add').addEventListener('click', () => noteEditor(null));
-  const grid = $('#notes-grid');
-  let notes = [];
-  try { notes = (await api('/library/notes')).notes; } catch (e) { toast(e.message, 'error'); }
-  if (!notes.length) { grid.innerHTML = `<div class="empty">Пока пусто. Создайте первый конспект!</div>`; return; }
-  notes.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)).forEach((n) => grid.appendChild(noteCard(n)));
-}
-
-function noteCard(n) {
-  const el = document.createElement('div');
-  el.className = 'note-card card';
-  el.innerHTML = `
-    <h3>${esc(n.title)}</h3>
-    <p>${esc(n.body)}</p>
-    <div class="note-date muted">${timeAgo(n.updated_at)}</div>
-    <div class="note-actions">
-      <button class="btn btn-ghost btn-sm" data-act="edit" data-ico="edit"></button>
-      <button class="btn btn-ghost btn-sm" data-act="del" data-ico="trash"></button>
-    </div>`;
-  el.querySelector('[data-act="edit"]').addEventListener('click', () => noteEditor(n));
-  el.querySelector('[data-act="del"]').addEventListener('click', async () => {
-    if (!confirm('Удалить конспект?')) return;
-    try { await api('/library/notes/' + n.id, { method: 'DELETE' }); viewNotes(); toast('Конспект удалён'); }
-    catch (err) { toast(err.message, 'error'); }
-  });
-  return el;
-}
-
-function noteEditor(n) {
-  const modal = document.createElement('div');
-  modal.className = 'modal-backdrop';
-  modal.innerHTML = `
-    <div class="modal card">
-      <button class="close-x">✕</button>
-      <h2>${n ? 'Редактировать конспект' : 'Новый конспект'}</h2>
-      <form id="note-form">
-        <div class="form-row"><label>Заголовок</label><input name="title" required maxlength="120" value="${esc(n ? n.title : '')}"></div>
-        <div class="form-row"><label>Текст</label><textarea name="body" rows="6" placeholder="Содержимое конспекта...">${esc(n ? n.body : '')}</textarea></div>
-        <button type="submit" class="btn btn-primary btn-block">Сохранить</button>
-      </form>
-    </div>`;
-  $('#modal-root').appendChild(modal);
-  modal.addEventListener('click', (e) => { if (e.target === modal || e.target.classList.contains('close-x')) modal.remove(); });
-  $('#note-form', modal).addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    try {
-      if (n) await api('/library/notes/' + n.id, { method: 'PUT', body: { title: fd.get('title'), body: fd.get('body') } });
-      else await api('/library/notes', { method: 'POST', body: { title: fd.get('title'), body: fd.get('body') } });
-      modal.remove(); viewNotes(); toast('Конспект сохранён');
-    } catch (err) { toast(err.message, 'error'); }
-  });
-}
 /* ---------- ИЗБРАННОЕ ---------- */
 let favMap = null; // "type:itemId" -> favorite id (для переключателя)
 
@@ -3967,78 +3901,6 @@ async function registerCallHandlers() {
   socket.on('call:end', () => { toast('Звонок завершён'); cleanupCall(); });
 }
 
-/* ---------- ГРУППЫ ---------- */
-async function viewGroups() {
-  const view = $('#view');
-  view.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-      <div class="page-title" style="margin:0"><span class="screen-ico" data-ico="group"></span>Группы</div>
-      <button class="btn btn-primary btn-sm" id="group-add">＋ Создать</button>
-    </div>
-    <div class="notes-grid" id="groups-grid"></div>`;
-  $('#group-add').addEventListener('click', () => groupEditor(null));
-  const grid = $('#groups-grid');
-  let groups = [];
-  try { groups = (await api('/library/groups')).groups; } catch (e) { toast(e.message, 'error'); }
-  if (!groups.length) { grid.innerHTML = `<div class="empty">Пока нет групп. Создайте первую!</div>`; return; }
-  groups.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)).forEach((g) => grid.appendChild(groupCard(g)));
-}
-
-function groupCard(g) {
-  const el = document.createElement('div');
-  el.className = 'note-card card group-card';
-  el.innerHTML = `
-    <h3>${esc(g.name)}</h3>
-    <p>${esc(g.description)}</p>
-    <div class="note-date muted"><span class="bn-ico" data-ico="friends"></span> ${g.member_count || 1} участн. · ${timeAgo(g.updated_at)}</div>
-    <div class="note-actions">
-      <button class="btn btn-ghost btn-sm" data-act="go">Перейти в чат</button>
-      <button class="btn btn-ghost btn-sm" data-act="edit" data-ico="edit"></button>
-      <button class="btn btn-ghost btn-sm" data-act="del" data-ico="trash"></button>
-    </div>`;
-  el.querySelector('[data-act="go"]').addEventListener('click', () => {
-    if (g.chatUid) go('/messages/' + g.chatUid);
-  });
-  el.querySelector('[data-act="edit"]').addEventListener('click', () => groupEditor(g));
-  el.querySelector('[data-act="del"]').addEventListener('click', async () => {
-    if (!confirm('Удалить группу?')) return;
-    try { await api('/library/groups/' + g.id, { method: 'DELETE' }); viewGroups(); toast('Группа удалена'); }
-    catch (err) { toast(err.message, 'error'); }
-  });
-  return el;
-}
-
-function groupEditor(g) {
-  const modal = document.createElement('div');
-  modal.className = 'modal-backdrop';
-  modal.innerHTML = `
-    <div class="modal card">
-      <button class="close-x">✕</button>
-      <h2>${g ? 'Редактировать группу' : 'Новая группа'}</h2>
-      <form id="group-form">
-        <div class="form-row"><label>Название</label><input name="name" required maxlength="80" value="${esc(g ? g.name : '')}"></div>
-        <div class="form-row"><label>Описание</label><textarea name="description" rows="4" placeholder="О чём эта группа...">${esc(g ? g.description : '')}</textarea></div>
-        <button type="submit" class="btn btn-primary btn-block">Сохранить</button>
-      </form>
-    </div>`;
-  $('#modal-root').appendChild(modal);
-  modal.addEventListener('click', (e) => { if (e.target === modal || e.target.classList.contains('close-x')) modal.remove(); });
-  $('#group-form', modal).addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    try {
-      if (g) await api('/library/groups/' + g.id, { method: 'PUT', body: { name: fd.get('name'), description: fd.get('description') } });
-      else {
-        const res = await api('/library/groups', { method: 'POST', body: { name: fd.get('name'), description: fd.get('description') } });
-        modal.remove();
-        toast('Группа создана');
-        if (res.group.chatUid) go('/messages/' + res.group.chatUid);
-        return;
-      }
-      modal.remove(); viewGroups(); toast('Группа сохранена');
-    } catch (err) { toast(err.message, 'error'); }
-  });
-}
 function wireGlobal() {
   $$('.tab').forEach((tab) => {
     tab.addEventListener('click', () => {
