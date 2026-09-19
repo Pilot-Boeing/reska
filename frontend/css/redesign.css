@@ -686,13 +686,13 @@ body {
 .ob-top { display: flex; align-items: flex-start; gap: 10px; }
 .ob-ico { width: 34px; height: 34px; border-radius: 10px; flex: none; display: grid; place-items: center; background: var(--clr-primary); color: var(--clr-on-primary); }
 .ob-txt { flex: 1; }
-.ob-next {
-  align-self: flex-end; border: 1px solid var(--clr-border-soft); background: transparent;
-  color: var(--clr-primary); border-radius: 9px; padding: 5px 14px; font-weight: 700;
-  cursor: pointer; font-size: 13px; transition: border-color .18s, background .18s;
+.ob-next, .ob-skip {
+  align-self: flex-end; border: 1px solid color-mix(in srgb, var(--clr-primary) 60%, transparent);
+  background: transparent; color: var(--clr-primary); border-radius: 9px; padding: 5px 14px;
+  font-weight: 700; cursor: pointer; font-size: 13px;
 }
-.ob-next:hover { border-color: var(--clr-primary); background: color-mix(in srgb, var(--clr-primary) 10%, transparent); }
-.ob-next:focus-visible { outline-offset: 2px; }
+.ob-next:hover, .ob-skip:hover { border-color: var(--clr-primary); background: color-mix(in srgb, var(--clr-primary) 12%, transparent); }
+.ob-next:focus-visible, .ob-skip:focus-visible { outline-offset: 2px; }
 
 /* =========================================================
    ДОСТУПНОСТЬ — фокус и снижение анимации (этап 1)
