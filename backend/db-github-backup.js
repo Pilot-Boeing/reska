@@ -13,6 +13,10 @@ const { execFileSync } = require('child_process');
 
 let warnedNoToken = false;
 
+// Ставится, если архив в GitHub есть, но не читается текущим ключом.
+// Пока флаг поднят, авто-выгрузка приостановлена: нельзя затирать архив пустой БД.
+let backupBlocked = false;
+
 function config() {
   const token = process.env.GITHUB_TOKEN;
   if (!token) {
@@ -34,11 +38,31 @@ function config() {
   };
 }
 
+// Локальная БД «пустая» (её безопасно заменить архивом из GitHub), если файла нет,
+// он не открывается/повреждён, не содержит таблицы users или таблица пуста.
+function looksEmpty(localPath) {
+  try {
+    const { DatabaseSync } = require('node:sqlite');
+    const conn = new DatabaseSync(localPath, { readOnly: true });
+    try {
+      const t = conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get();
+      if (!t) return true;
+      const r = conn.prepare('SELECT COUNT(*) AS n FROM users').get();
+      return !r || r.n === 0;
+    } finally {
+      try { conn.close(); } catch (_) {}
+    }
+  } catch (_) {
+    return true;
+  }
+}
+
 // Синхронное восстановление БД из GitHub ПЕРЕД открытием файла (используется в db.js).
 function restoreDbSync(localPath) {
   const c = config();
   if (!c) return false;
-  if (fs.existsSync(localPath)) return false;
+  // Если локальная БД уже содержит реальные данные — не трогаем её.
+  if (fs.existsSync(localPath) && !looksEmpty(localPath)) return false;
   const encPath = JSON.stringify(path.join(__dirname, 'encryption.js'));
   const script = `
     const TOKEN = process.env.GHTOKEN;
@@ -69,27 +93,42 @@ function restoreDbSync(localPath) {
         console.log('[backup] БД восстановлена из GitHub:', DEST);
       })
       .catch(e => {
-        console.error('[backup] restore ошибка:', e.message);
-        if (/расшифровать|неизвестный формат/.test(String(e.message))) process.stdout.write('\\nRESTORE_HARD_FAIL\\n');
+        const msg = String(e.message);
+        console.error('[backup] restore ошибка:', msg);
+        // Бэкап есть, но не читается (ключ не совпал или формат битый).
+        // Маркер блокировки: не затирать архив и не падать в штатном режиме.
+        if (/расшифровать|неизвестный формат/.test(msg)) {
+          process.stdout.write('\\nBACKUP_BLOCKED\\n');
+          if (process.env.BACKUP_STRICT === '1') process.stdout.write('\\nRESTORE_HARD_FAIL\\n');
+        }
         process.exitCode = 2;
       });
   `;
   try {
     execFileSync(process.execPath, ['-e', script], {
       stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: 30000,
+      timeout: 60000,
       env: { ...process.env, GHTOKEN: c.token, GH_PATH: localPath },
     });
     return fs.existsSync(localPath);
   } catch (e) {
     const out = String((e.stdout || '') + (e.stderr || '') + e.message || '');
-    if (out.includes('RESTORE_HARD_FAIL')) {
-      // Бэкап есть, но не расшифровывается (например, ключ SPACE_MASTER_KEY не совпадает).
-      // Нельзя молча создавать пустую БД и потом затирать ею архив — останавливаем запуск.
-      throw new Error(
-        '[backup] БД из GitHub есть, но не расшифровывается мастер-ключом. ' +
-        'Задайте корректный SPACE_MASTER_KEY (и PHONE_HASH_SECRET, если использовали раньше) и перезапустите.'
+    if (out.includes('BACKUP_BLOCKED')) {
+      backupBlocked = true;
+      console.error(
+        '[backup] Бэкап в GitHub есть, но не расшифровывается текущим SPACE_MASTER_KEY.\n' +
+        '[backup] Файл архива оставлен без изменений; авто-выгрузка приостановлена, чтобы не затереть его.\n' +
+        '[backup] Запуск продолжается с локальной БД. Чтобы вернуть данные: задайте прежний SPACE_MASTER_KEY\n' +
+        '[backup] (тот, которым бэкап был создан) и перезапустите. Если ключ неизвестен, приложение стартует\n' +
+        '[backup] пустым и после появления данных начнёт выгружать новый архив.'
       );
+      if (out.includes('RESTORE_HARD_FAIL')) {
+        throw new Error(
+          '[backup] (BACKUP_STRICT) Бэкап в GitHub не расшифровывается текущим ключом. ' +
+          'Задайте корректный SPACE_MASTER_KEY и перезапустите.'
+        );
+      }
+      return fs.existsSync(localPath);
     }
     if (!out.includes('Command failed')) console.error('[backup] Не удалось восстановить БД из GitHub:', e.message);
     return false;
@@ -101,6 +140,10 @@ async function uploadDbFrom(localPath) {
   const c = config();
   if (!c) return false;
   if (!fs.existsSync(localPath)) return false;
+  if (backupBlocked) {
+    console.log('[backup] Авто-выгрузка БД приостановлена: архив не расшифровывается текущим ключом (не затираем его)');
+    return false;
+  }
   try {
     // Консистентный снапшот БД через VACUUM INTO (не только основной файл: WAL тоже участвует),
     // чтобы выгруженная копия не прерывала работу живой БД (node:sqlite в режиме WAL).
