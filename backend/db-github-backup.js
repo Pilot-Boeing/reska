@@ -99,7 +99,6 @@ function restoreDbSync(localPath) {
         // Маркер блокировки: не затирать архив и не падать в штатном режиме.
         if (/расшифровать|неизвестный формат/.test(msg)) {
           process.stdout.write('\\nBACKUP_BLOCKED\\n');
-          if (process.env.BACKUP_STRICT === '1') process.stdout.write('\\nRESTORE_HARD_FAIL\\n');
         }
         process.exitCode = 2;
       });
@@ -122,12 +121,6 @@ function restoreDbSync(localPath) {
         '[backup] (тот, которым бэкап был создан) и перезапустите. Если ключ неизвестен, приложение стартует\n' +
         '[backup] пустым и после появления данных начнёт выгружать новый архив.'
       );
-      if (out.includes('RESTORE_HARD_FAIL')) {
-        throw new Error(
-          '[backup] (BACKUP_STRICT) Бэкап в GitHub не расшифровывается текущим ключом. ' +
-          'Задайте корректный SPACE_MASTER_KEY и перезапустите.'
-        );
-      }
       return fs.existsSync(localPath);
     }
     if (!out.includes('Command failed')) console.error('[backup] Не удалось восстановить БД из GitHub:', e.message);
