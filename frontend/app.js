@@ -687,7 +687,7 @@ function showMediaError(kind, why, err) {
   modal.className = 'modal-backdrop';
   modal.innerHTML = `
     <div class="modal card">
-      <button class="close-x">✕</button>
+      <button class="close-x" type="button" aria-label="Закрыть">✕</button>
       <h2 style="display:flex;align-items:center;gap:8px">${isRound ? '⭕' : '🎤'} ${esc(title)}</h2>
       <p style="margin:10px 0;color:var(--text)">${esc(reason)}</p>
       <div class="card" style="background:var(--bg2);padding:12px;font-size:13px;color:var(--muted);line-height:1.5">
@@ -1539,7 +1539,7 @@ async function openVideoOverlay(id) {
   modal.style.overflowY = 'auto';
   modal.innerHTML = `
     <div class="modal watch" style="max-width:820px;margin:30px auto;width:100%">
-      <button class="close-x">✕</button>
+      <button class="close-x" type="button" aria-label="Закрыть">✕</button>
       <video class="player" src="${esc(mediaUrl(v.file))}" poster="${esc(mediaUrl(v.thumb))}" controls autoplay></video>
        <h1 class="watch-title">${linkifyTags(v.title)}</h1>
        <div class="watch-meta">
@@ -2341,7 +2341,7 @@ function openForwardModal(messageId) {
   });
   modal.innerHTML = `
     <div class="modal card">
-      <button class="close-x">✕</button>
+      <button class="close-x" type="button" aria-label="Закрыть">✕</button>
       <h2 class="page-title">Переслать сообщение</h2>
       <div class="fwd-list">${items}</div>
       <button class="btn btn-primary btn-block" id="fwd-send">Отправить</button>
@@ -2710,7 +2710,7 @@ async function openNewChatModal() {
   modal.className = 'modal-backdrop';
   modal.innerHTML = `
     <div class="modal card">
-      <button class="close-x">✕</button>
+      <button class="close-x" type="button" aria-label="Закрыть">✕</button>
       <h2>Новый чат</h2>
       <input type="search" placeholder="Поиск по имени или логину..." id="chat-user-search" style="margin-bottom:12px">
       <div id="chat-user-list" style="max-height:340px;overflow-y:auto"></div>
@@ -2755,7 +2755,7 @@ async function openNewGroupModal() {
   modal.className = 'modal-backdrop';
   modal.innerHTML = `
     <div class="modal card">
-      <button class="close-x">✕</button>
+      <button class="close-x" type="button" aria-label="Закрыть">✕</button>
       <h2>👥 Новая группа</h2>
       <input type="text" id="g-name" placeholder="Название группы" maxlength="80" style="margin-bottom:8px">
       <input type="text" id="g-desc" placeholder="Описание (необязательно)" maxlength="2000" style="margin-bottom:10px">
@@ -2820,7 +2820,7 @@ async function openGroupMembers(chat) {
   modal.className = 'modal-backdrop';
   modal.innerHTML = `
     <div class="modal card">
-      <button class="close-x">✕</button>
+      <button class="close-x" type="button" aria-label="Закрыть">✕</button>
       <h2>👥 ${esc(chat.name)} — участники</h2>
       ${isOwner ? `<div style="margin-bottom:10px">
           <input type="search" placeholder="Добавить: имя или @логин" id="gm-search" style="margin-bottom:8px">
@@ -3029,7 +3029,7 @@ async function viewProfile(id) {
       modal.className = 'modal-backdrop';
       modal.innerHTML = `
         <div class="modal card">
-          <button class="close-x">✕</button>
+          <button class="close-x" type="button" aria-label="Закрыть">✕</button>
           <h2><span class="screen-ico" data-ico="edit"></span>Личное имя</h2>
           <p class="muted" style="font-size:13px;margin-bottom:12px">Имя, под которым вы видите ${esc(u.name)} (видно только вам)</p>
           <form id="alias-form">
@@ -3433,7 +3433,7 @@ function openNewPostModal() {
   modal.className = 'modal-backdrop';
   modal.innerHTML = `
     <div class="modal card">
-      <button class="close-x">✕</button>
+      <button class="close-x" type="button" aria-label="Закрыть">✕</button>
       <h2>Новый пост</h2>
       <form id="post-form">
         <div class="form-row">
@@ -4304,6 +4304,32 @@ function paintIcon(el) {
 function paintIcons(root) {
   (root || document).querySelectorAll('[data-ico]').forEach(paintIcon);
 }
+/* ---------- a11y-база: ARIA у динамических модалок/тостов (обсервером) ---------- */
+function a11yWalk(n) {
+  if (n.matches && n.matches('.modal')) {
+    n.setAttribute('role', 'dialog');
+    n.setAttribute('aria-modal', 'true');
+    n.setAttribute('aria-label', n.getAttribute('aria-label') || 'Диалоговое окно');
+  }
+  if (n.matches && n.matches('.toast')) {
+    n.setAttribute('role', 'status');
+    n.setAttribute('aria-live', 'polite');
+  }
+  if (n.querySelectorAll) {
+    n.querySelectorAll('.modal').forEach((m) => {
+      m.setAttribute('role', 'dialog');
+      m.setAttribute('aria-modal', 'true');
+      m.setAttribute('aria-label', m.getAttribute('aria-label') || 'Диалоговое окно');
+    });
+    n.querySelectorAll('.toast').forEach((t) => {
+      t.setAttribute('role', 'status');
+      t.setAttribute('aria-live', 'polite');
+    });
+    n.querySelectorAll('.close-x').forEach((b) => {
+      if (!b.getAttribute('aria-label')) b.setAttribute('aria-label', 'Закрыть');
+    });
+  }
+}
 function setupIconObserver() {
   const targets = ['view', 'modal-root', 'toast-root'].map((id) => document.getElementById(id)).filter(Boolean);
   const obs = new MutationObserver((muts) => {
@@ -4311,6 +4337,7 @@ function setupIconObserver() {
       if (n.nodeType !== 1) return;
       if (n.matches && n.matches('[data-ico]')) paintIcon(n);
       if (n.querySelectorAll) n.querySelectorAll('[data-ico]').forEach(paintIcon);
+      a11yWalk(n);
     }));
   });
   targets.forEach((t) => obs.observe(t, { childList: true, subtree: true }));

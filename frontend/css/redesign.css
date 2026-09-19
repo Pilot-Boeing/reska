@@ -674,8 +674,35 @@ body {
 .about-row { display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--border-soft); font-size: 13.5px; color: var(--muted); }
 
 /* =========================================================
-   АВТООПРЕДЕЛЕНИЕ УСТРОЙСТВА (ПК / ТЕЛЕФОН)
+   ДОСТУПНОСТЬ — фокус и снижение анимации (этап 1)
    ========================================================= */
+/* Клавиатурный фокус — всегда видим (кольцо брендового оранжа), мышь — не шумит.
+   Единый источник на весь интерфейс, перекрывает разрозненные focus-правила style.css. */
+:focus-visible {
+  outline: 3px solid var(--clr-primary) !important;
+  outline-offset: 2px !important;
+  border-radius: 2px;
+}
+/* для плавающей кнопки-кругляшки кольцо крупнее */
+.fab:focus-visible, [data-device="mobile"] .fab:focus-visible { outline-offset: 4px; }
+.btn:focus-visible, .btn-primary:focus-visible, .btn-ghost:focus-visible { outline-offset: 3px; }
+input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offset: 2px; }
+a:focus-visible, button:focus-visible { outline: 3px solid var(--clr-primary); outline-offset: 2px; }
+
+/* скрываем двойное кольцо там, где фокус уже подсвечен рамкой поля/вкладки */
+.search:focus-within, .field input:focus, .search-tabs .btn:focus { outline: none !important; }
+
+/* Пользователи, которым нужна тишина: отключаем свечение-пульс и крупные движения */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001s !important;
+    scroll-behavior: auto !important;
+  }
+  .fab::after { animation: none !important; }
+  .story-ring::before { animation: none !important; }
+}
 /* Десктоп: виден сайдбар, мобильная навигация скрыта */
 html[data-device="desktop"] .mobilenav { display: none !important; }
 html[data-device="desktop"] .menu-toggle { display: none !important; }
