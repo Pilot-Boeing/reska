@@ -593,6 +593,10 @@ async function main() {
   r = await api('GET', '/api/call/config', { jar: jarA });
   check('конфиг звонков возвращает iceServers (массив)', r.res.status === 200 && Array.isArray(r.data.iceServers));
 
+  // История звонков — пустая вначале
+  r = await api('GET', '/api/call/history', { jar: jarA });
+  check('история звонков отдаёт список', r.res.status === 200 && Array.isArray(r.data.calls));
+
   server.kill();
   await new Promise((res) => server.once('exit', res));
   for (let i = 0; i < 5; i++) {

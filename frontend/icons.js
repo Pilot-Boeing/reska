@@ -32,6 +32,8 @@
     alert: '<path d="M12 3l10 18H2z"/><path d="M12 9v5M12 17v.5"/>',
     fire: '<path d="M12 3c1 3-2 4-2 7a2 2 0 004 0c0-1 0-2 0-2 2 2 3 4 3 6a5 5 0 11-10 0c0-4 3-6 5-11z"/>',
     call_video: '<path d="M5 4h3l2 5-2 2a12 12 0 005 5l2-2 5 2v3a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z"/><rect x="2" y="5" width="8" height="6" rx="1" fill="currentColor" stroke="none"/>',
+    arrow_up: '<path d="M12 19V5M5 12l7-7 7 7"/>',
+    arrow_down: '<path d="M12 5v14M5 12l7 7 7-7"/>',
     bolt: '<path d="M13 3L4 14h7l-1 7 9-11h-7z" fill="currentColor" stroke="none"/>',
     eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
     play: '<path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/>',

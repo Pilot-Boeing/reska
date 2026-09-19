@@ -348,7 +348,7 @@ function go(hash) {
 const AUTH_ROUTES = new Set([
   'feed', 'videos', 'clips', 'watch', 'clip', 'messages', 'profile',
   'edit-profile', 'security', 'search', 'videos-new', 'clips-new',
-  'notes', 'favorites', 'groups', 'friends', 'notifications'
+  'notes', 'favorites', 'groups', 'friends', 'notifications', 'calls'
 ]);
 
 async function render() {
@@ -381,6 +381,7 @@ async function render() {
       case 'clips-new': viewVideoForm(true); break;
       case 'favorites': viewFavorites(); break;
       case 'friends': await viewFriends(); break;
+      case 'calls': await viewCalls(); break;
       case 'notifications': await viewNotifications(); break;
       case 'about': viewAbout(); break;
       case 'settings':
@@ -1834,7 +1835,8 @@ async function openChat(chatUid) {
     head = `<a href="#/profile/${esc(chat.other.uid)}"><img class="avatar sm" src="${mediaUrl(chat.other.avatar)}" alt=""></a>
       <b>${esc(displayName(chat.other))}</b>
       <span class="e2ee-tag" title="Сообщения шифруются на вашем устройстве (E2EE)">🔒 E2EE</span>
-      <button class="btn btn-ghost btn-sm chat-call" id="chat-call" title="Позвонить"><span class="bn-ico" data-ico="phone"></span></button>
+      <button class="btn btn-ghost btn-sm chat-call" id="chat-call" title="Видеозвонок"><span class="bn-ico" data-ico="call_video"></span></button>
+      <button class="btn btn-ghost btn-sm chat-call-audio" id="chat-call-audio" title="Позвонить (аудио)"><span class="bn-ico" data-ico="phone"></span></button>
       <button class="btn btn-ghost btn-sm chat-mute" id="chat-mute" title="Без звука"><span class="bn-ico" data-ico="${chat.muted ? 'bell_off' : 'bell'}"></span></button>
       <button class="btn btn-ghost btn-sm chat-del" title="Удалить чат"><span class="bn-ico" data-ico="trash"></span></button>`;
   }
@@ -1879,6 +1881,8 @@ async function openChat(chatUid) {
   });
   const callBtn = $('#chat-call', view);
   if (callBtn) callBtn.addEventListener('click', () => startCall(chat.other.uid, 'video'));
+  const callAudioBtn = $('#chat-call-audio', view);
+  if (callAudioBtn) callAudioBtn.addEventListener('click', () => startCall(chat.other.uid, 'audio'));
 
   const msgs = [];
   for (const m of data.messages) msgs.push(await decryptMessage(m, chatUid));
@@ -4023,6 +4027,129 @@ async function registerCallHandlers() {
 
   socket.on('call:declined', () => { toast('Звонок отклонён'); cleanupCall(); });
   socket.on('call:end', () => { toast('Звонок завершён'); cleanupCall(); });
+}
+
+/* ---------- ИСТОРИЯ ЗВОНКОВ ---------- */
+function fmtDur(sec) {
+  sec = Math.max(0, Math.round(sec || 0));
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return m ? `${m} мин ${s} сек` : `${s} сек`;
+}
+
+function callDayLabel(ts) {
+  if (!ts) return '';
+  const d = new Date(ts.replace(' ', 'T') + 'Z');
+  const now = new Date();
+  const dayMs = 86400000;
+  const startOf = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((startOf(now) - startOf(d)) / dayMs);
+  if (diff === 0) return 'Сегодня';
+  if (diff === 1) return 'Вчера';
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+async function viewCalls() {
+  const view = $('#view');
+  const meId = me.id;
+  let calls = [];
+  try { calls = (await api('/call/history')).calls || []; }
+  catch (err) { view.innerHTML = `<div class="empty">Ошибка: ${esc(err.message)}</div>`; return; }
+
+  view.innerHTML = `
+    <div class="page-title" style="margin-bottom:18px"><span class="screen-ico" data-ico="phone"></span>Звонки</div>
+    <div class="tabs" id="call-tabs">
+      <button class="tab active" data-tab="all">Все</button>
+      <button class="tab" data-tab="missed">Пропущенные</button>
+    </div>
+    ${calls.length ? `<div style="display:flex;justify-content:flex-end;margin:6px 0 10px"><button class="btn btn-ghost btn-sm" id="call-clear">Очистить историю</button></div>` : ''}
+    <div id="call-list"></div>`;
+
+  const list = $('#call-list', view);
+  if (!calls.length) {
+    list.innerHTML = `<div class="empty">Звонков пока не было. Позвоните человеку из чата или со страницы профиля.</div>`;
+    return;
+  }
+
+  let tab = 'all';
+
+  function callRow(c, uid, name, avatar, subHtml, subCls) {
+    const el = document.createElement('div');
+    el.className = 'user-row card';
+    el.style.cssText = 'margin-bottom:6px;align-items:center';
+    el.innerHTML = `
+      <a href="#/profile/${esc(uid)}" style="display:flex;align-items:center;gap:12px;flex:1;color:var(--text);min-width:0">
+        <img class="avatar" src="${mediaUrl(avatar)}" alt="">
+        <div style="min-width:0">
+          <div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)}</div>
+          <div class="muted ${subCls || ''}" style="font-size:12px;display:flex;align-items:center;gap:5px">${subHtml}</div>
+        </div>
+      </a>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" data-act="call" title="Позвонить"><span class="bn-ico" data-ico="${c.type === 'video' ? 'call_video' : 'phone'}"></span></button>
+        <button class="btn btn-ghost btn-sm" data-act="del" title="Удалить"><span class="bn-ico" data-ico="trash"></span></button>
+      </div>`;
+    const callBtn = el.querySelector('[data-act="call"]');
+    callBtn.addEventListener('click', () => startCall(uid, c.type === 'video' ? 'video' : 'audio'));
+    el.querySelector('[data-act="del"]').addEventListener('click', async () => {
+      try { await api('/call/history/' + c.id, { method: 'DELETE' }); go('/calls'); }
+      catch (err) { toast(err.message, 'error'); }
+    });
+    return el;
+  }
+
+  function render() {
+    const filtered = tab === 'missed'
+      ? calls.filter((c) => c.status === 'missed' && c.to_id === meId)
+      : calls;
+    if (!filtered.length) {
+      list.innerHTML = `<div class="empty">${tab === 'missed' ? 'Нет пропущенных звонков' : 'Звонков пока нет'}</div>`;
+      return;
+    }
+    list.innerHTML = '';
+    let curDay = null;
+    filtered.forEach((c) => {
+      const dir = c.from_id === meId ? 'out' : 'in';
+      const uid = dir === 'out' ? c.to_uid : c.from_uid;
+      const name = dir === 'out' ? c.to_name : c.from_name;
+      const avatar = dir === 'out' ? c.to_avatar : c.from_avatar;
+      const day = callDayLabel(c.created_at);
+      if (curDay !== day) {
+        curDay = day;
+        const h = document.createElement('div');
+        h.className = 'call-day';
+        h.textContent = day;
+        list.appendChild(h);
+      }
+      const kind = c.type === 'video' ? 'Видео' : 'Аудио';
+      let subHtml = '', subCls = '';
+      if (c.status === 'answered') {
+        subHtml = `<span class="bn-ico" style="color:var(--mchs)" data-ico="${dir === 'in' ? 'arrow_down' : 'arrow_up'}"></span>${kind} · ${fmtDur(c.duration)}`;
+      } else if (c.status === 'missed' && dir === 'in') {
+        subHtml = '<span class="bn-ico" data-ico="phone"></span>Пропущенный'; subCls = 'call-missed';
+      } else if (c.status === 'missed') {
+        subHtml = '<span class="bn-ico" data-ico="phone"></span>Без ответа'; subCls = 'call-missed';
+      } else {
+        subHtml = '<span class="bn-ico" data-ico="phone"></span>Отклонён';
+      }
+      list.appendChild(callRow(c, uid, name, avatar, subHtml, subCls));
+    });
+  }
+
+  $('#call-tabs', view).addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-tab]');
+    if (!btn) return;
+    tab = btn.dataset.tab;
+    $$('#call-tabs .tab', view).forEach((b) => b.classList.toggle('active', b === btn));
+    render();
+  });
+  const clear = $('#call-clear', view);
+  if (clear) clear.addEventListener('click', async () => {
+    if (!confirm('Очистить всю историю звонков?')) return;
+    try { await api('/call/history', { method: 'DELETE' }); go('/calls'); }
+    catch (err) { toast(err.message, 'error'); }
+  });
+
+  render();
 }
 
 function wireGlobal() {

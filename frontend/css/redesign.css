@@ -562,6 +562,13 @@ body {
 .user-row a { color: var(--text); text-decoration: none; }
 .user-row a:hover { color: var(--mchs); }
 
+/* история звонков */
+.call-day {
+  margin: 14px 2px 6px; font-size: 12px; font-weight: 700;
+  letter-spacing: .4px; text-transform: uppercase; color: var(--muted);
+}
+.call-missed { color: var(--danger) !important; font-weight: 700; }
+
 .search-block { margin-bottom: 22px; }
 .search-block-title {
   display: flex; align-items: center; gap: 8px;
