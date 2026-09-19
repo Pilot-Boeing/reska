@@ -473,6 +473,7 @@ async function afterLogin() {
   const h = location.hash;
   if (!h || h === '#' || h === '#/') location.hash = '#/feed';
   else render();
+  setTimeout(runOnboarding, 800);
 }
 
 const aliases = new Map(); /* uid -> alias (личные имена) */
@@ -4330,6 +4331,40 @@ function a11yWalk(n) {
     });
   }
 }
+const ONBOARD_KEY = 'reska-ob';
+function runOnboarding() {
+  try { if (localStorage.getItem(ONBOARD_KEY)) return; } catch (e) { return; }
+  const steps = [
+    { sel: '#fab-main', text: 'Новый пост, видео или клип — одной кнопкой «+».' },
+    { sel: '#search-form', text: 'Здесь ищут посты, видео и людей.' },
+    { sel: '#user-menu-btn', text: 'Профиль, настройки и выход — под вашей аватаркой.' }
+  ];
+  const step = steps.map(({ sel, text }) => ({ text, el: document.querySelector(sel) }))
+    .find((o) => o.el && o.el.offsetParent !== null);
+  if (!step) return;
+  const r = step.el.getBoundingClientRect();
+  const wrap = document.createElement('div');
+  wrap.className = 'ob-wrap';
+  const card = document.createElement('div');
+  card.className = 'ob-card';
+  card.setAttribute('role', 'status');
+  card.setAttribute('aria-live', 'polite');
+  card.innerHTML = `<div class="ob-top"><span class="ob-ico" data-ico="star"></span><span class="ob-txt">${step.text}</span></div><button class="ob-skip" type="button">Понятно</button>`;
+  paintIcon(card);
+  const left = Math.max(12, Math.min(r.left + r.width / 2, window.innerWidth - 290));
+  card.style.left = (left - 145) + 'px';
+  card.style.top = Math.max(10, r.top - card.offsetHeight - 12) + 'px';
+  wrap.appendChild(card);
+  document.body.appendChild(wrap);
+  const close = () => {
+    wrap.remove();
+    try { localStorage.setItem(ONBOARD_KEY, '1'); } catch (e) {}
+  };
+  card.querySelector('.ob-skip').addEventListener('click', close);
+  wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); });
+  setTimeout(close, 9000);
+}
+
 function setupIconObserver() {
   const targets = ['view', 'modal-root', 'toast-root'].map((id) => document.getElementById(id)).filter(Boolean);
   const obs = new MutationObserver((muts) => {
