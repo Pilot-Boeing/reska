@@ -221,12 +221,13 @@
         <button class="pact" data-action="repost" title="Репост">
           <span class="pact-ico" data-ico="repost"></span>
         </button>
-        <button class="pact" data-action="share">
-          <span class="pact-ico" data-ico="share"></span><span>Поделиться</span>
+        <button class="pact" data-action="more" title="Ещё">
+          <span class="pact-ico">⋯</span>
         </button>
-        <button class="pact" data-action="fav" title="В избранное">
-          <span class="pact-ico" data-ico="star"></span>
-        </button>
+        <div class="pact-more" hidden>
+          <button class="pact pact-more-item" data-action="share">Поделиться</button>
+          <button class="pact pact-more-item" data-action="fav">В избранное</button>
+        </div>
       </div>
       <div class="post-reactions"></div>
       <div class="comments-wrap hidden">

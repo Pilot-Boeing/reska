@@ -28,7 +28,7 @@
   --clr-text-soft: #dde6f3;
   --clr-text-muted: #cfd9e8;
   --clr-muted: #8794a8;
-  --clr-bg: #060a12;
+  --clr-bg: #05080f;
   --clr-bg-2: #0a1020;
   --clr-panel: #0d1525;
   --clr-panel-2: #122038;
@@ -196,14 +196,13 @@ body {
   display: flex; align-items: center; justify-content: center;
 }
 .fab .ico { width: 26px; height: 26px; }
-.fab::after {
-  content: ""; position: absolute; inset: 0; border-radius: 50%;
-  border: 2px solid var(--clr-primary); animation: fabPulse 2.2s ease-out infinite;
+.fab::before {
+  content: ""; position: absolute; inset: -2px; border-radius: inherit;
+  border: 1px solid var(--clr-border);
+  opacity: 0; transition: opacity var(--dur-sm) var(--ease-out);
 }
-@keyframes fabPulse {
-  0% { transform: scale(1); opacity: .55; }
-  100% { transform: scale(1.6); opacity: 0; }
-}
+.fab:hover::before { opacity: 1; }
+@keyframes fabPulse { }
 .fab-menu {
   background: var(--panel2); border: 1px solid var(--border);
   border-radius: 14px; box-shadow: var(--shadow);

@@ -1041,6 +1041,23 @@ function wirePostEvents(feed) {
       await toggleFav('post', id, actionBtn);
     }
 
+    if (action === 'more') {
+      const menu = $('.pact-more', root);
+      const open = actionBtn.classList.toggle('is-open');
+      if (menu) {
+        menu.hidden = !open;
+        if (open) {
+          const closeMores = (ev) => {
+            if (ev.target.closest('.pact[data-action="more"]', root)) return;
+            menu.hidden = true;
+            actionBtn.classList.remove('is-open');
+            document.removeEventListener('click', closeMores, true);
+          };
+          document.addEventListener('click', closeMores, true);
+        }
+      }
+    }
+
     if (action === 'repost') {
       try {
         const res = await api('/posts', { method: 'POST', body: JSON.stringify({ repost_of: root.dataset.id }), headers: { 'Content-Type': 'application/json' } });
