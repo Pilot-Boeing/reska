@@ -763,6 +763,13 @@ html[data-device="mobile"] .chat-item { padding: 14px; }
 @media (prefers-reduced-motion: reduce) {
   .video-card:hover, .video-card:hover .video-thumb img { transform: none; }
 }
+
+/* Волна 2 — Экраны. Профиль: тихая личная комната (спокойный фокус, без возврата) */
+.profile-head, .profile-head .profile-avatar { transition: transform var(--dur-md) var(--ease-out), box-shadow var(--dur-md) var(--ease-out); }
+.profile-head:hover { transform: none; }
+.profile-avatar:focus-visible { box-shadow: 0 0 0 var(--focus-ring) var(--clr-primary); }
+.profile-tab:focus-visible { box-shadow: 0 0 0 var(--focus-ring) var(--clr-primary); }
+.profile-stats { border-radius: var(--r-md); border: 1px solid var(--clr-border); }
 .auth-card input:focus,
 .auth-card input:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--clr-primary) 40%, transparent); }
 
