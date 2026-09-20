@@ -750,6 +750,19 @@ html[data-device="mobile"] .chat-item { padding: 14px; }
 /* Волна 2 — Экраны. Вход: спокойная сцена приветствия (тихий вход, без сирен) */
 .auth-card { animation: breatheIn .5s var(--ease-out) both; }
 @keyframes breatheIn { from { opacity: 0; transform: translateY(10px) scale(.985); } }
+
+/* Волна 2 — Экраны. Видео: кинозал-тишина (видео = сцена, интерфейс тише) */
+.video-card { transition: transform var(--dur-md) var(--ease-out), box-shadow var(--dur-md) var(--ease-out); }
+.video-card:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+.video-thumb img { transition: transform var(--dur-lg) var(--ease-out); }
+.video-card:hover .video-thumb img { transform: scale(1.03); }
+.video-card .video-fav,
+.video-card .video-del { transition: transform var(--dur-sm) var(--ease-out), opacity var(--dur-sm) var(--ease-out); }
+.video-card .video-fav:hover,
+.video-card .video-del:hover { transform: scale(1.08); }
+@media (prefers-reduced-motion: reduce) {
+  .video-card:hover, .video-card:hover .video-thumb img { transform: none; }
+}
 .auth-card input:focus,
 .auth-card input:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--clr-primary) 40%, transparent); }
 
