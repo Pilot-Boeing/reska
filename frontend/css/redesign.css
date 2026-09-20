@@ -747,3 +747,9 @@ html[data-device="mobile"] .fab { bottom: 96px; }
 html[data-device="mobile"] .user-row { padding: 14px; }
 html[data-device="mobile"] .chat-item { padding: 14px; }
 
+/* Волна 2 — Экраны. Вход: спокойная сцена приветствия (тихий вход, без сирен) */
+.auth-card { animation: breatheIn .5s var(--ease-out) both; }
+@keyframes breatheIn { from { opacity: 0; transform: translateY(10px) scale(.985); } }
+.auth-card input:focus,
+.auth-card input:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--clr-primary) 40%, transparent); }
+
