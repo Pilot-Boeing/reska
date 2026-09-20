@@ -66,13 +66,11 @@ setInterval(() => {
 
 router.get('/', (req, res) => {
   const userId = req.userId || null;
-  const clip = req.query.clip === '1' ? 1 : req.query.clip === '0' ? 0 : null;
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
   const before = req.query.before ? Number(req.query.before) : 0;
   let sql = VIDEO_QUERY;
   const params = [];
   const conds = [];
-  if (clip !== null) { conds.push('v.is_clip = ?'); params.push(clip); }
   if (before) { conds.push('v.id < ?'); params.push(before); }
   if (conds.length) sql += ' WHERE ' + conds.join(' AND ');
   sql += ' ORDER BY v.created_at DESC, v.id DESC LIMIT ' + (limit + 1);
@@ -94,24 +92,22 @@ router.post('/', auth, userLimiter({ name: 'video_create', max: 5, message: 'С�
   if (!req.file) return res.status(400).json({ error: 'Выберите видеофайл' });
   if (!title) return res.status(400).json({ error: 'Укажите название' });
 
-  const isClip = req.body.is_clip === '1' || req.body.is_clip === 'true' ? 1 : 0;
   const thumb = encryptedThumb(title);
 
   const r = db
-    .prepare('INSERT INTO videos (uid, user_id, title, description, file, thumb, is_clip) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .run(randomUid(), req.userId, title, sanitizeText(req.body.description, 2000), `videos/${req.file.filename}`, thumb, isClip);
+    .prepare('INSERT INTO videos (uid, user_id, title, description, file, thumb, is_clip) VALUES (?, ?, ?, ?, ?, ?, 0)')
+    .run(randomUid(), req.userId, title, sanitizeText(req.body.description, 2000), `videos/${req.file.filename}`, thumb);
   const row = db.prepare(`${VIDEO_QUERY} WHERE v.id = ?`).get(Number(r.lastInsertRowid));
   log('video_create', { req, userId: req.userId, meta: { videoId: row.id } });
-  const dest = isClip ? 'clips' : 'videos';
   notifyAudience(
     req.app,
     req.user,
     'video',
-    { body: `новое видео: ${title}`, url: dest },
+    { body: `новое видео: ${title}`, url: 'videos' },
     { followers: true, friends: true }
   );
   extractMentions(req.body.description).forEach((u) =>
-    notify(req.app, u.id, req.user, 'mention', { body: 'упомянул(а) вас в видео', url: dest })
+    notify(req.app, u.id, req.user, 'mention', { body: 'упомянул(а) вас в видео', url: 'videos' })
   );
   res.status(201).json({ video: videoWithMeta(row, req.userId) });
 });

@@ -346,8 +346,8 @@ function go(hash) {
 }
 
 const AUTH_ROUTES = new Set([
-  'feed', 'videos', 'clips', 'watch', 'clip', 'messages', 'profile',
-  'edit-profile', 'security', 'search', 'videos-new', 'clips-new',
+  'feed', 'videos', 'watch', 'messages', 'profile',
+  'edit-profile', 'security', 'search', 'videos-new',
   'notes', 'favorites', 'groups', 'friends', 'notifications', 'calls'
 ]);
 
@@ -369,8 +369,7 @@ async function render() {
   try {
     switch (route) {
       case 'feed': await viewFeed(); break;
-      case 'videos': await viewVideos(false); break;
-      case 'clips': await viewVideos(true); break;
+      case 'videos': await viewVideos(); break;
       case 'watch': await viewWatch(segs[1]); break;
       case 'messages': await viewMessages(segs[1]); break;
       case 'profile': await viewProfile(segs[1] === 'me' ? me.uid : segs[1]); break;
@@ -378,7 +377,6 @@ async function render() {
       case 'security': viewSecurity(); break;
       case 'search': currentSearch = query.get('q') || currentSearch; await viewSearch(query.get('type') || 'all'); break;
       case 'videos-new': viewVideoForm(false); break;
-      case 'clips-new': viewVideoForm(true); break;
       case 'favorites': viewFavorites(); break;
       case 'friends': await viewFriends(); break;
       case 'calls': await viewCalls(); break;
@@ -1155,32 +1153,9 @@ function buildVideoCard(v) {
 
 const VIDEO_PAGE = 12;
 let videoState = { before: 0, hasMore: true, loading: false, observer: null };
-let clipState = { before: 0, hasMore: true, loading: false, observer: null };
-let videosIsClips = false;
 
-async function viewVideos(isClips) {
-  videosIsClips = isClips;
+async function viewVideos() {
   const view = $('#view');
-  if (isClips) {
-    clipState = { before: 0, hasMore: true, loading: false, observer: null };
-    view.innerHTML = '';
-    const feed = document.createElement('div');
-    feed.className = 'clips-feed';
-    feed.id = 'clips-feed';
-    view.appendChild(feed);
-    const nav = document.createElement('div');
-    nav.className = 'clips-nav';
-    nav.innerHTML = `<button data-dir="up" title="Назад">^</button><button data-dir="down" title="Вперёд">▼</button>`;
-    view.appendChild(nav);
-    const addBtn = document.createElement('a');
-    addBtn.className = 'fab fab-clips';
-    addBtn.href = '#/clips-new';
-    addBtn.title = 'Добавить клип';
-    addBtn.innerHTML = '＋';
-    view.appendChild(addBtn);
-    await loadClips(true);
-    return;
-  }
   videoState = { before: 0, hasMore: true, loading: false, observer: null };
   view.innerHTML = `
     <div class="page-head">
@@ -1240,7 +1215,7 @@ async function loadClips(reset) {
     try { data = await api(`/videos?clip=1&limit=${VIDEO_PAGE}&before=0`); }
     catch (e) { feed.innerHTML = `<div class="empty">Ошибка загрузки</div>`; return; }
     feed.innerHTML = '';
-    if (!data.videos.length) { feed.innerHTML = `<div class="clips-empty empty">Нет клипов. Добавьте видео как клип!<div style="margin-top:14px"><a class="btn btn-primary" href="#/clips-new">＋ Добавить клип</a></div></div>`; return; }
+    if (!data.videos.length) { feed.innerHTML = `<div class="clips-empty empty">Нет клипов. Нажмите «＋» внизу и выберите «Добавить клип».</div>`; return; }
     data.videos.forEach((v) => feed.appendChild(buildClipCard(v)));
     clipState.hasMore = data.hasMore;
     clipState.before = data.videos[data.videos.length - 1].id;
@@ -1272,7 +1247,7 @@ async function viewClipsReel(videos) {
   view.innerHTML = '';
   if (!videos.length) {
     view.innerHTML = `<div class="clips-empty">
-      <div class="empty">Нет клипов. Добавьте видео как клип!<div style="margin-top:14px"><a class="btn btn-primary" href="#/clips-new">＋ Добавить клип</a></div></div>
+      <div class="empty">Нет клипов. Нажмите «＋» внизу и выберите «Добавить клип».</div>
     </div>`;
     return;
   }
@@ -1281,17 +1256,11 @@ async function viewClipsReel(videos) {
   feed.id = 'clips-feed';
   videos.forEach((v) => feed.appendChild(buildClipCard(v)));
   view.appendChild(feed);
-  const nav = document.createElement('div');
-  nav.className = 'clips-nav';
-  nav.innerHTML = `<button data-dir="up" title="Назад">^</button><button data-dir="down" title="Вперёд">▼</button>`;
-  view.appendChild(nav);
-
-  const addBtn = document.createElement('a');
-  addBtn.className = 'fab fab-clips';
-  addBtn.href = '#/clips-new';
-  addBtn.title = 'Добавить клип';
-  addBtn.innerHTML = '＋';
-  view.appendChild(addBtn);
+  const hint = document.createElement('div');
+  hint.className = 'clips-hint';
+  hint.setAttribute('role', 'status');
+  hint.textContent = 'Чтобы добавить клип — нажмите «＋» внизу и выберите «Клип».';
+  view.appendChild(hint);
 
   const clips = $$('.clip', feed);
   const vids = clips.map(n => $('video', n));

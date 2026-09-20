@@ -35,7 +35,7 @@
     <div class="auth-bg"></div>
       <div class="auth-card glass">
         <div class="auth-logo"><span class="logo-star" data-ico="fire"></span>РЕСКА</div>
-      <p class="auth-sub">Сообщество. Видео. Клипы. Чат.</p>
+      <p class="auth-sub">Сообщество. Видео. Чат.</p>
       <div class="tabs">
         <button class="tab active" data-tab="login">Вход</button>
         <button class="tab" data-tab="register">Регистрация</button>
@@ -121,9 +121,6 @@
           <a href="#/videos" data-nav="videos" class="slink">
             <span class="slink-icon" data-ico="video"></span><span class="slink-text">Видео</span>
           </a>
-          <a href="#/clips" data-nav="clips" class="slink">
-            <span class="slink-icon" data-ico="clip"></span><span class="slink-text">Клипы</span>
-          </a>
           <a href="#/messages" data-nav="messages" class="slink">
             <span class="slink-icon" data-ico="chat"></span><span class="slink-text">Сообщения</span>
             <span id="msg-badge" class="badge hidden">0</span>
@@ -155,7 +152,6 @@
             <a href="#/friends"><span class="dm-ico" data-ico="friends"></span>Друзья</a>
             <a href="#/favorites"><span class="dm-ico" data-ico="star"></span>Избранное</a>
             <a href="#/videos-new"><span class="dm-ico" data-ico="video"></span>Загрузить видео</a>
-            <a href="#/clips-new"><span class="dm-ico" data-ico="clip"></span>Добавить клип</a>
             <a href="#" data-action="logout"><span class="dm-ico" data-ico="logout"></span>Выйти</a>
           </div>
         </div>
@@ -181,7 +177,6 @@
     <nav class="mobilenav" id="mobilenav">
       <a href="#/feed" data-nav="feed"><span class="mn-ico" data-ico="home"></span><span class="mn-txt">Лента</span></a>
       <a href="#/videos" data-nav="videos"><span class="mn-ico" data-ico="video"></span><span class="mn-txt">Видео</span></a>
-      <a href="#/clips" data-nav="clips"><span class="mn-ico" data-ico="clip"></span><span class="mn-txt">Клипы</span></a>
       <a href="#/messages" data-nav="messages"><span class="mn-ico" data-ico="chat"><span id="msg-badge-mn" class="badge mn-badge hidden">0</span></span><span class="mn-txt">Чат</span></a>
       <a href="#/calls" data-nav="calls"><span class="mn-ico" data-ico="phone"></span><span class="mn-txt">Звонки</span></a>
       <a href="#/notifications" data-nav="notifications"><span class="mn-ico" data-ico="bell"><span id="notif-badge-mn" class="badge mn-badge hidden">0</span></span><span class="mn-txt">Увед.</span></a>
@@ -193,7 +188,6 @@
     <div class="fab-menu hidden" id="fab-menu">
       <a href="#" data-fab="post"><span class="dm-ico" data-ico="notes"></span>Новый пост</a>
       <a href="#/videos-new" data-fab="video"><span class="dm-ico" data-ico="video"></span>Загрузить видео</a>
-      <a href="#/clips-new" data-fab="clip"><span class="dm-ico" data-ico="clip"></span>Добавить клип</a>
     </div>
   </div>
 
@@ -253,7 +247,6 @@
         <img alt="превью">
         <span class="video-thumb-play" data-ico="play"></span>
         <span class="views-badge" data-ico="eye"> 0</span>
-        <span class="clip-badge hidden">КЛИП</span>
         <button class="video-fav" data-action="fav" title="В избранное" data-ico="star"></button>
         <button class="video-del hidden" data-action="video-del" title="Удалить" data-ico="close"></button>
       </div>
@@ -261,42 +254,6 @@
         <h3 class="video-title"></h3>
         <p class="video-author muted"></p>
       </div>
-    </div>
-  </template>
-
-  <!-- ============ ШАБЛОН КЛИПА (реелс) ============ -->
-  <template id="tpl-clip">
-    <div class="clip" data-role="clip">
-      <div class="clip-media">
-        <video muted loop preload="metadata"></video>
-        <div class="clip-progress"><span></span></div>
-      </div>
-      <div class="clip-overlay"></div>
-      <button class="clip-play-pause"></button>
-      <button class="clip-mute">
-        <span class="muted-ico" data-ico="mic_off"></span>
-        <span class="unmuted-ico" data-ico="mic"></span>
-      </button>
-      <a class="clip-author-block" href="#">
-        <span class="clip-avatar"></span>
-        <span class="clip-author-name"></span>
-        <span class="clip-follow">Подписаться</span>
-      </a>
-      <div class="clip-side">
-        <button class="clip-act" data-action="like"><span class="clip-act-ico" data-ico="heart"></span><span class="clip-like-count">0</span></button>
-        <button class="clip-act" data-action="toggle-comments"><span class="clip-act-ico" data-ico="comment"></span><span class="clip-comment-count">0</span></button>
-        <button class="clip-act" data-action="share"><span class="clip-act-ico" data-ico="share"></span></button>
-        <button class="clip-act" data-action="fav" title="В избранное"><span class="clip-act-ico" data-ico="star"></span></button>
-        <button class="clip-act clip-del hidden" data-action="delete" title="Удалить"><span class="clip-act-ico" data-ico="close"></span></button>
-      </div>
-      <div class="clip-info">
-        <p class="clip-title"></p>
-        <p class="clip-sound">
-          <span class="clip-sound-ico"></span>
-          <span class="clip-sound-text"></span>
-        </p>
-      </div>
-      <div class="clip-heart"></div>
     </div>
   </template>
 
