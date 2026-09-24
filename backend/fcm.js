@@ -158,6 +158,12 @@ function sendOne(token, accessToken, cred, title, body, data) {
  * Если пользователь сейчас онлайн (socket соединён) — пропускаем.
  */
 async function notifyUser(userId, { title, body, data }, onlineUsers) {
+  /* Web Push (браузер) — независимо от FCM */
+  try {
+    await webpush.sendToUser(userId, { title, body, data }, onlineUsers);
+  } catch (e) {
+    console.error('webpush: ошибка отправки:', e.message);
+  }
   const cred = loadCred();
   if (!cred) return;
   if (onlineUsers && onlineUsers.has(userId)) return;

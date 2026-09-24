@@ -191,6 +191,13 @@ app.get('/', (req, res) => {
 
 app.use(express.static(FRONTEND_DIR, {
   setHeaders: (res, filePath) => {
+    /* service worker и webmanifest нельзя кешировать навсегда (immutable) — иначе браузер не подхватит обновления.
+       Остальным статикой (.js/.css) можно: файлы имеют content-хвост по имени */
+    if (/sw\.js$|manifest\.json$/.test(filePath)) {
+      res.set('Cache-Control', 'no-cache');
+      return;
+    }
+    if (/\.(js|css)$/.test(filePath)) res.set('Cache-Control', 'public, max-age=31536000, immutable');
     if (/\.(js|css)$/.test(filePath)) res.set('Cache-Control', 'public, max-age=31536000, immutable');
   }
 }));

@@ -2,8 +2,36 @@ const express = require('express');
 const { db } = require('../db');
 const { auth } = require('../helpers');
 const { log } = require('../logger');
+const webpush = require('../webpush');
 
 const router = express.Router();
+
+/* ---------- Web Push (браузер, VAPID) ---------- */
+
+/* публичный VAPID-ключ (urlsafe base64) — для подписки в браузере */
+router.get('/web-key', (req, res) => {
+  res.json({ publicKey: webpush.publicKeyUrlSafe() });
+});
+
+/* регистрация web-подписки пользователя (upsert по endpoint) */
+router.post('/web-sub', auth, (req, res) => {
+  try {
+    webpush.saveSubscription(req.userId, req.body);
+    res.json({ ok: true });
+  } catch (e) {
+    log('webpush_subscribe_error', { req, userId: req.userId });
+    res.status(400).json({ error: e.message || 'Некорректная web-подписка' });
+  }
+});
+
+/* удаление web-подписки по endpoint (выход из приложения) */
+router.delete('/web-sub', auth, (req, res) => {
+  const endpoint = String(req.body.endpoint || '').trim();
+  if (endpoint) webpush.deleteSubscription(endpoint);
+  res.json({ ok: true });
+});
+
+/* ---------- FCM-токены устройств (Capacitor) ---------- */
 
 /* регистрация FCM-токена устройства (upsert) */
 router.post('/token', auth, (req, res) => {

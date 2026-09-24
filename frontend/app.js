@@ -284,6 +284,141 @@ async function unregisterPushToken() {
   try { await api('/push/token', { method: 'DELETE', body: { token }, silent: true }); } catch (e) {}
 }
 
+/* =============================================================
+   Web Push (браузер): service worker + подписка PushManager (VAPID)
+   ============================================================= */
+const WEB_SUB_STORE = 'space.webSub';
+let installPrompt = null; /* кэш события beforeinstallprompt (A2HS) */
+
+function urlB64ToU8(b64) {
+  const s = String(b64).replace(/-/g, '+').replace(/_/g, '/');
+  const bin = atob(s);
+  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+}
+
+/* сохранение web-подписки на сервер (upsert) */
+async function saveWebSub(sub) {
+  if (!sub) return;
+  try {
+    const body = sub.toJSON ? sub.toJSON() : sub;
+    if (!body.endpoint) body.endpoint = sub.endpoint;
+    await api('/push/web-sub', { method: 'POST', body });
+    try { localStorage.setItem(WEB_SUB_STORE, JSON.stringify({ endpoint: body.endpoint })); } catch (e) {}
+  } catch (e) {
+    console.warn('web-sub: не сохранили:', e.message);
+  }
+}
+
+/* удаление web-подписки при выходе */
+async function unregisterWebSub() {
+  let endpoint;
+  try { const s = JSON.parse(localStorage.getItem(WEB_SUB_STORE) || '{}'); endpoint = s && s.endpoint; } catch (e) {}
+  if (endpoint) {
+    try { await api('/push/web-sub', { method: 'DELETE', body: { endpoint }, silent: true }); } catch (e) {}
+    try { localStorage.removeItem(WEB_SUB_STORE); } catch (e) {}
+  }
+}
+
+/* ---------- единый запрос разрешений (микрофон, камера, гео, уведомления) ---------- */
+let permsRequestedOnce = false;
+async function requestAllPermissions() {
+  if (permsRequestedOnce) return;
+  permsRequestedOnce = true;
+  const asked = [];
+  /* 1. уведомления (браузерный push уже подстраивается, но просим явно) */
+  if (window.Notification && Notification.permission === 'default') {
+    try {
+      const p = await Notification.requestPermission();
+      if (p === 'granted') asked.push('уведомления');
+    } catch (e) { console.warn('нет разрешения на уведомления:', e.message); }
+  }
+  /* 2. микрофон + камера (единый GET, по тапу) */
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+      asked.push('микрофон + камера');
+      try { stream.getTracks().forEach((t) => t.stop()); } catch (e) {}
+    } catch (e) { console.warn('нет доступа к микро/камере:', e.message); }
+  }
+  /* 3. геолокация */
+  if (navigator.geolocation) {
+    try {
+      const pos = await new Promise((ok, no) => navigator.geolocation.getCurrentPosition(ok, no, { timeout: 5000 }));
+      if (pos) asked.push('геолокация');
+    } catch (e) { console.warn('нет гео:', e.message); }
+  }
+  if (asked.length) toast('Разрешения выданы: ' + asked.join(', '));
+}
+
+async function initWebPush() {
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    /* 1. service worker — регистрируем всегда: он и уведомления ловит, и PWA-шёлл */
+    const reg = await navigator.serviceWorker.register('/sw.js');
+
+    /* 2. захват события установки (A2HS / beforeinstallprompt) */
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      installPrompt = e;
+      showInstallButton();
+    });
+
+    /* 3. подписка браузера на push (VAPID-ключ с сервера) */
+    if (!('PushManager' in window)) return;
+    if (Notification && Notification.permission === 'denied') return;
+
+    let sub;
+    try { sub = await reg.pushManager.getSubscription(); } catch (e) { sub = null; }
+
+    if (!sub && Notification && Notification.permission === 'granted') {
+      const pub = await api('/push/web-key', { silent: true });
+      const key = pub && pub.publicKey;
+      if (key) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlB64ToU8(key)
+        });
+      }
+    }
+    if (sub) await saveWebSub(sub);
+
+    /* 4. обновление подписки при повторном входе/смене учётки */
+    navigator.serviceWorker.ready.then((r) => r.pushManager.getSubscription()).then((s) => s && saveWebSub(s)).catch(() => {});
+  } catch (e) {
+    console.warn('Web Push инициализация пропущена:', e.message);
+  }
+}
+
+/* кнопка «Установить / Ярлык» в настройках */
+function settingsInstallBlock() {
+  const standalone = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent || '');
+  if (standalone) return '<div class="settings-section" id="install-block"><h4>Приложение установлено</h4><p>Ярлык добавлен — уведомления включены.</p></div>';
+  return '<div class="settings-section" id="install-block"><h4>Ярлык на рабочий стол</h4>' +
+    '<p>' + (ios
+      ? 'В Safari нажмите «Поделиться» → «На экран "Домой"».'
+      : 'Добавьте Space на рабочий стол, чтобы открывать в один тап и получать уведомления.') + '</p>' +
+    '<button id="btn-install" class="btn btn-primary" type="button">Установить приложение</button></div>';
+}
+
+async function showInstallButton() {
+  const btn = document.getElementById('btn-install');
+  if (!btn || !installPrompt) return;
+  btn.textContent = 'Установить приложение';
+  btn.classList.add('btn-primary');
+  btn.onclick = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') { try { localStorage.removeItem(WEB_SUB_STORE); } catch (e) {} }
+    installPrompt = null;
+    const block = document.getElementById('install-block');
+    if (block) block.innerHTML = '<h4>Приложение установлено</h4><p>Ярлык добавлен.</p>';
+    render();
+  };
+}
+
+
 async function initPush() {
   if (!capPush()) return;
   try {
@@ -466,6 +601,8 @@ async function afterLogin() {
   updateNavUser();
   E2EE.pushPubKey(me.uid);
   initPush();
+  initWebPush();
+  requestAllPermissions(); /* один раз запросить: уведомления, микро+камера, геолокация */
   connectSocket();
   await Promise.all([loadAliases(), loadNotifBadge()]);
   const h = location.hash;
@@ -542,12 +679,15 @@ async function connectSocket() {
       return refreshChatList();
     }
 
-    if (mine && action === 'edit' && inActiveChat) {
+    /* реакция — обновляем элемент сообщения точечно (и свои, и чужие).
+       Иначе действие от другого юзера приходит как новое «обычное» сообщение в чат. */
+    if (action === 'reaction' && inActiveChat) {
       const m = await decryptMessage(payload.message, payload.chatUid);
       updateMessageEl(payload.message.id, m);
       return;
     }
-    if (mine && action === 'reaction' && inActiveChat) {
+
+    if (mine && action === 'edit' && inActiveChat) {
       const m = await decryptMessage(payload.message, payload.chatUid);
       updateMessageEl(payload.message.id, m);
       return;
